@@ -9,6 +9,7 @@ import pandas as pd
 from sodapy import Socrata
 import matplotlib.pyplot as plt
 import seaborn as sns
+import numpy as np
 
 def go():
     '''
@@ -16,7 +17,10 @@ def go():
     '''
     #Problem 1
     crime_reports = download_crime_reports(2017, 2018)
-    summarize_crime(crime_reports)
+    print('In total, there were {} crime reports in Chicago between {} and {}'\
+          .format(len(crime_reports), 2017, 2018))
+ 
+    summarize_by_type(crime_reports)
 
 def download_crime_reports(start_year, end_year):
     '''
@@ -38,21 +42,33 @@ def download_crime_reports(start_year, end_year):
 
     return results_df
 
-def summarize_crime_reports(crime_reports):
+def summarize_by_time(crime_reports):
     '''
     Generates summary statistics of crime reports data
 
     Inputs:
     crime_reports (pandas dataframe): each row is a crime report
     '''
-    '''
-    Too detailed types
-    groupby = crime_reports.groupby(['primary_type', 'description'])
-    by_type = pd.DataFrame(columns=['Type', 'Description', 'Count'])
-    for (type_, desc), group in groupby:
-        by_type = by_type.append({'Type': type_, 'Description': desc, 'Count':
-                        len(group)}, ignore_index=True)
-    print(by_type.sort_values('Count', ascending=False).head(10))
-    '''
-    crime_reports.primary_type.value_counts().plot(kind='pie')
+   #By type of crime
+    by_type = crime_reports.primary_type\
+                           .value_counts()\
+                           .to_frame()\
+                           .rename({'primary_type': 'Count'}, axis=1)
+    by_type.loc[:, 'Percentage'] = by_type.apply(lambda x: x.Count / np.sum(by_type.Count) * 100,
+                                                 axis=1)\
+                                          .rename({'0': 'Percentage'}) 
+    print(by_type)
+    top10 = by_type.Count.head(5).copy()
+    top10['Other types'] = np.sum(by_type.Count.tail(len(by_type) - 5))
+    plt.pie(top10, autopct='%1.1f%%', labels=list(top10.index)) 
+    plt.title('Five types of crime account for 68% of all crime reports')
     plt.show()
+   
+def summarize_by_time(crime_reports):
+    '''
+    Temportal analysis of crime reports data
+
+    Inputs:
+    crime_reports (pandas dataframe): each row is a crime report
+    '''
+    pass 
