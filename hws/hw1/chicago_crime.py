@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import seaborn as sns
 import numpy as np
+import geopandas as geopd
 
 def go():
     '''
@@ -43,6 +44,33 @@ def download_crime_reports(start_year, end_year):
     results_df.date = pd.to_datetime(results_df.date)
     return results_df
 
+def disaggregated_arrest_rates(crime_reports, field):
+    '''
+    Disaggregates arrest rates (i.e. the percent of reports ending in an arrest)
+    by some other field
+
+    Inputs:
+    crime_reports (pandas dataframe): each row is a crime report
+    field (str): the field to disaggregate by
+    '''
+    arrest_by_neigh = crime_reports.groupby(field)\
+                                   .arrest\
+                                   .mean()
+    arrest_by_neigh = arrest_by_neigh * 100
+    print('Percent of reports with arrest')
+    print(arrest_by_neigh.agg([np.mean, np.std]))
+    print(arrest_by_neigh.quantile([0, .25, .5, .75, 1]))
+    
+    f, ax = plt.subplots(nrows=1, ncols=1)
+    sns.set()
+    sns.distplot(arrest_by_neigh, bins=range(0, 39, 2), kde=False, ax=ax)
+    ax.set_xticks(range(0, 39, 2), minor=True)
+    ax.tick_params(axis='x', which='minor', bottom=True)
+    ax.set_xlabel('Perecent of reports ending in an arrest')
+    ax.set_ylabel('Number of {}'.format(field))
+
+    plt.show()
+
 def summarize_by_type(crime_reports):
     '''
     Summarizes crime reports data by type of crime
@@ -72,8 +100,6 @@ def summarize_by_type(crime_reports):
     ax2.set_ylabel('Number of neighborhoods')
     ax2.set_title('The percent of reports resulting in an arrest is more even' +
     ' across neighborhoods, though some outliers remain', wrap=True)
-
-
 
     plt.show()
    
@@ -106,7 +132,7 @@ def summarize_by_time(crime_reports):
     sns.barplot(x='primary_type', y='change', data=by_time_by_type.head(5),
                 palette='Blues', ax=ax1)
     ax1.axhline()
-    ax1.set_ylabel('Percente change')
+    ax1.set_ylabel('Percent change')
     ax1.set_title('Types of reports with the biggest percentage decrease between 2017 and 2018')
 
     sns.barplot(x='primary_type', y='change', data=by_time_by_type.tail(5),
@@ -115,7 +141,6 @@ def summarize_by_time(crime_reports):
     ax2.set_ylabel('Percent change')
     ax2.set_title('Types of reports with the biggest percentage increase between 2017 and 2018')
     plt.xticks(wrap=True) 
-    plt.show()
 
 def summarize_by_month(crime_reports):
     '''
@@ -167,23 +192,7 @@ def summarize_by_neighborhood(crime_reports):
     ax.set_title('The distribution of crime reports per neighborhood has a long'
     + ' right tail')
 
-   crime_reports['arrest'] = crime_reports.arrest.astype(int)
-    arrest_by_neigh = crime_reports.groupby(['community_area'])\
-                                   .arrest\
-                                   .mean()
-    arrest_by_neigh = arrest_by_neigh * 100
-    print('Percent of reports with arrest')
-    print(arrest_by_neigh.agg([np.mean, np.std]))
-    print(arrest_by_neigh.quantile([0, .25, .5, .75, 1]))
-    
-    f2, ax2 = plt.subplots(nrows=1, ncols=1)
-    sns.distplot(arrest_by_neigh, bins=range(0, 39, 2), kde=False, ax=ax2)
-    ax.set_xticks(range(0, 39, 2), minor=True)
-    ax.tick_params(axis='x', which='minor', bottom=True)
-    ax2.set_xlabel('Perecent of reports ending in an arrest')
-    ax2.set_ylabel('Number of neighborhoods')
-    ax2.set_title('The percent of reports resulting in an arrest is more even' +
-    ' across neighborhoods, though some outliers remain', wrap=True)
+    disaggregated_arrest_rates(crime_reports, 'community_area')
 
     plt.show()
 
