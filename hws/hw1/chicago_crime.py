@@ -20,7 +20,7 @@ from io import StringIO
 
 APP_TOKEN = '***REMOVED***'
 
-def download_crime_reports(start_year, end_year, community_areas):
+def download_crime_reports(start_year, end_year):
     '''
     Imports the crime data from the Chicago open data portal using the SODA API.
 
@@ -45,8 +45,6 @@ def download_crime_reports(start_year, end_year, community_areas):
                              .astype(coltypes)
     
     results_df.date = pd.to_datetime(results_df.date)
-
-    results_df = link_reports_neighborhoods(results_df, community_areas)
 
     return results_df
 
@@ -234,6 +232,7 @@ def summarize_monthly(crime_reports):
     Inputs:
     crime_reports (pandas dataframe): each row is a crime report
     '''
+    crime_reports = crime_reports.copy()
     f, ax = plt.subplots(nrows=1, ncols=1)
     crime_reports['month'] = crime_reports.date.dt.month\
                                           .apply(lambda x: '1900-{}-01'.format(x))
@@ -243,7 +242,6 @@ def summarize_monthly(crime_reports):
                             .arrest\
                             .reset_index()\
                             .rename({'arrest': 'counts'}, axis=1)
-    print(by_month)
 
     #https://matplotlib.org/gallery/text_labels_and_annotations/date.html
     sns.lineplot(x='month', y='counts', hue='year', palette=['r', 'b'],
@@ -253,8 +251,8 @@ def summarize_monthly(crime_reports):
     ax.xaxis.set_major_formatter(month_format)
     ax.tick_params(axis='x', labelrotation=45)
     ax.set_xlabel('')
-    ax.set_ylabel('Number of crimes')
-    ax.set_title('The number of crime reports appears to vary seasonally')
+    ax.set_ylabel('Number of crime reports')
+    ax.set_title('Number of crime reports by month')
     
     plt.subplots_adjust(bottom=0.15)
     plt.show()
@@ -268,23 +266,22 @@ def summarize_types_change(crime_reports, start_year, end_year):
     start_year: the base year
     end_year: the year to measue change to
     '''
-    f, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, gridspec_kw={'hspace': 0.5})
+    f, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, gridspec_kw={'hspace': 0.7})
     by_time_by_type = crime_reports.groupby(['year', 'primary_type'])\
                                    .count()\
                                    .arrest\
-                                   .unstack(level=0)\
-                                   .reset_index()
-    by_time_by_type['change'] = (by_time_by_type[end_year] - 
+                                   .unstack(level=0)
+    by_time_by_type['Change (absolute)'] = (by_time_by_type[end_year] - 
                                  by_time_by_type[start_year])
-    by_time_by_type.sort_values('change', inplace=True)
-    print(by_time_by_type.loc[:, [start_year, end_year, 'change']])
+    by_time_by_type.sort_values('Change (absolute)', inplace=True)
+    print(by_time_by_type.to_string())
 
     #Decreases bar graph
-    sns.barplot(x='primary_type', y='change', data=by_time_by_type.head(5),
-                palette='Blues', ax=ax1)
+    decreases = by_time_by_type.head(5)
+    sns.barplot(x=decreases.index, y=decreases['Change (absolute)'], palette='Blues', ax=ax1)
     ax1.axhline()
     ax1.set_ylabel('Change in number of reports')
-    title = "Types of reports with largest absoulte decrease between {} and {}"\
+    title = "Types with largest absolute decrease between {} and {}"\
             .format(start_year, end_year)
     ax1.set_title(title)
     labels = ['\n'.join(wrap(l.get_text(), 12)) for l in ax1.get_xticklabels()] #https://stackoverflow.com/questions/11244514/
@@ -292,11 +289,11 @@ def summarize_types_change(crime_reports, start_year, end_year):
     ax1.set_xlabel("")
 
     #Increases bar graph
-    sns.barplot(x='primary_type', y='Change', data=by_time_by_type.tail(5),
-                palette='Reds', ax=ax2) 
+    increases = by_time_by_type.tail(5)
+    sns.barplot(x=increases.index, y=increases['Change (absolute)'], palette='Reds', ax=ax2) 
     ax2.axhline()
     ax2.set_ylabel('Change in numbert of reports')
-    title = "Types of reports with largest absoulte increase between {} and {}"\
+    title = "Types with largest absolute increase between {} and {}"\
             .format(start_year, end_year)
     ax2.set_title(title)
     labels = ['\n'.join(wrap(l.get_text(), 12)) for l in ax2.get_xticklabels()]
@@ -305,7 +302,7 @@ def summarize_types_change(crime_reports, start_year, end_year):
     
     plt.show()
 
-def summarize_neighborhoods(crime_reports):
+def summarize_neighborhoods(crime_reports, community_areas):
     '''
     Summarizes the number of crime reports by neighborhood
 
@@ -324,7 +321,13 @@ def summarize_neighborhoods(crime_reports):
     print()
 
     graph_neighborhood_dist(crime_reports)
+    print()
+
     map_neighborhood_stats(crime_reports, community_areas)
+    print()
+
+    print('Number of crime reports by neighborhood:')
+    print(by_neighborhood)
 
 def graph_neighborhood_dist(crime_reports, filter_dict=None):
     '''
@@ -351,8 +354,7 @@ def graph_neighborhood_dist(crime_reports, filter_dict=None):
     ax.tick_params(axis='x', which='minor', bottom=True)
     ax.set_xlabel('Number of crime reports')
     ax.set_ylabel('Number of neighborhoods')
-    ax.set_title('The distribution of crime reports per neighborhood has a long'
-    + ' right tail')
+    ax.set_title('Distribution of crime reports per neighborhood')
 
     plt.show()
 
