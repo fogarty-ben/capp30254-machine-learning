@@ -478,9 +478,7 @@ def describe_blocks(block_summaries, block_stats):
     block_summaries: 
     '''
     linked = link_reports_block_stats(block_summaries, block_stats)
-    cols_to_agg = ['White alone', 'Black alone', 'Hispanic or Latino',
-                   "Bachelor's or more (>= 25 y/o)",
+    cols_to_agg = ['White alone (%)', 'Black alone (%)', 'Hispanic or Latino (%)',
+                   "Bachelor's or more (>= 25 y/o) (%)",
                    'Per Capita Income, last 12 months (2017 inflation adjusted dollars)']
-    print(linked[cols_to_agg].describe())
-
-    pass
+    return linked[cols_to_agg].describe()
