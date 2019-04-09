@@ -194,47 +194,13 @@ def link_reports_zip_stats(crime_reports, zip_stats):
     crime_reports = pd.merge(crime_reports, zip_stats, on='zip', how='left')
     return crime_reports
 
-def filter_reports(crime_reports, filter_dict, valid_keys):
-    '''
-    Filters a dataframe of crime reports according to specifications
-
-    Inputs:
-    crime_reports (pandas dataframe): each row is a crime report
-    filter_dict
-    valid_keys
-    
-    Returns: pandas dataframe 
-    '''
-
-    #Add start day
-    filter_dict = {k: v for k, v in filter_dict.items() if k in valid_keys}
-
-    if 'start_date' in filter_dict:
-        start = pd.to_datetime(filter_dict['start_date'], format='%Y-%m-%d')
-        crime_reports = crime_reports[crime_reports.date > start]
-    if 'end_date' in filter_dict:
-        end = pd.to_datetime(filter_dict['end_date'], format='%Y-%m-%d')
-        crime_reports = crime_reports[crime_reports.date < end]
-    if 'neighborhoods' in filter_dict:
-        crime_reports = crime_reports[crime_reports.community_area.isin(
-                                      filter_dict['neighborhoods'])]
-    if 'types' in filter_dict:
-        crime_reports = crime_reports[crime_reports.primary_type.isin(
-                                      filter_dict['types'])]
-
-    return crime_reports
-
-def summarize_types(crime_reports, filter_dict=None):
+def summarize_types(crime_reports):
     '''
     Summarizes the types of crime in a set of reported crimes
 
     Inputs:
     crime_reports (pandas dataframe): each row is a crime report
     '''
-    if filter_dict:
-        valid_keys = ['start_date', 'end_date', 'neighborhoods']
-        crime_reports = filter_reports(crime_reports, filter_dict, valid_keys)
-
     by_type = crime_reports.primary_type\
                            .value_counts()\
                            .to_frame()\
@@ -246,17 +212,13 @@ def summarize_types(crime_reports, filter_dict=None):
     print('Dividing based on types of crime:')
     print(by_type)
 
-def summarize_yearly(crime_reports, filter_dict=None):
+def summarize_yearly(crime_reports):
     '''
     Summarize year to year change in the number of crime reports
 
     Inputs:
     crime_reports (pandas dataframe): each row is a crime report
     '''
-    if filter_dict:
-        valid_keys = ['start_day', 'end_day', 'types']
-        crime_reports = filter_reports(crime_reports, filter_dict, valid_keys)
-
     by_time = crime_reports.year\
                            .value_counts()\
                            .to_frame()\
@@ -265,17 +227,13 @@ def summarize_yearly(crime_reports, filter_dict=None):
     by_time['Percent Change'] = by_time['Number of Reports'].pct_change() * 100
     print(by_time)
 
-def summarize_monthly(crime_reports, filter_dict=None):
+def summarize_monthly(crime_reports):
     '''
     Summarizes month to month changes in the number of crime reports
 
     Inputs:
     crime_reports (pandas dataframe): each row is a crime report
     '''
-    if filter_dict:
-        valid_keys = ['neighborhoods', 'types']
-        crime_reports = filter_reports(crime_reports, filter_dict, valid_keys)
-
     f, ax = plt.subplots(nrows=1, ncols=1)
     crime_reports['month'] = crime_reports.date.dt.month\
                                           .apply(lambda x: '1900-{}-01'.format(x))
@@ -301,7 +259,7 @@ def summarize_monthly(crime_reports, filter_dict=None):
     plt.subplots_adjust(bottom=0.15)
     plt.show()
 
-def summarize_types_change(crime_reports, start_year, end_year, filter_dict=None):
+def summarize_types_change(crime_reports, start_year, end_year):
     '''
     Summarizes year to year changes in types of crime reported
 
@@ -310,10 +268,6 @@ def summarize_types_change(crime_reports, start_year, end_year, filter_dict=None
     start_year: the base year
     end_year: the year to measue change to
     '''
-    if filter_dict:
-        valid_keys = ['neighborhoods']
-        crime_reports = filter_reports(crime_reports, filter_dict, valid_keys)
-
     f, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, gridspec_kw={'hspace': 0.5})
     by_time_by_type = crime_reports.groupby(['year', 'primary_type'])\
                                    .count()\
@@ -351,19 +305,13 @@ def summarize_types_change(crime_reports, start_year, end_year, filter_dict=None
     
     plt.show()
 
-def summarize_neighborhoods(crime_reports, community_areas, filter_dict=None):
+def summarize_neighborhoods(crime_reports):
     '''
     Summarizes the number of crime reports by neighborhood
 
     Inputs:
     crime_reports (pandas dataframe): each row is a crime report
     '''
-    if filter_dict:
-        valid_keys = ['start_date', 'end_date', 'types']
-        crime_reports = filter_reports(crime_reports, filter_dict, valid_keys)
-    
-
-    print(crime_reports)
     by_neighborhood = crime_reports.community_area\
                                    .value_counts()\
                                    .sort_values()
@@ -408,7 +356,7 @@ def graph_neighborhood_dist(crime_reports, filter_dict=None):
 
     plt.show()
 
-def map_neighborhood_stats(crime_reports, community_areas, filter_dict=None):
+def map_neighborhood_stats(crime_reports, community_areas):
     '''
     Generates a heatmap displaying the number of crimes reports across
     neighborhoods
@@ -419,10 +367,6 @@ def map_neighborhood_stats(crime_reports, community_areas, filter_dict=None):
         column describing the geometry of that community area
     types (list of strings): a list of crime types to filter the data on
     '''
-    if filter_dict:
-        valid_keys = ['start_date', 'end_date', 'types']
-        crime_reports = filter_reports(crime_reports, filter_dict, valid_keys)
-
     by_neighborhood = crime_reports.community_area\
                                    .value_counts()\
                                    .reset_index()\
@@ -448,15 +392,4 @@ def map_neighborhood_stats(crime_reports, community_areas, filter_dict=None):
     
     plt.show()
 
-def summarize_crime_reports(crime_reports):
-    '''
-    Provides a general summary of a dataset of crime reports
-
-    Inputs:
-    crime_reports (pandas dataframe): each row is a crime report
-    '''
-    #Overall
-    n_reports = len(crime_reports)
-    print('Overall, there were {} crime reports in the given set\n'.format(n_reports))
-    
 
