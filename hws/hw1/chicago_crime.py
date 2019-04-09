@@ -19,6 +19,7 @@ import urllib3
 from io import StringIO
 
 APP_TOKEN = 'rxYsI6aQTVNNqzshFFLTdecYL'
+CENSUS_API = 'a09a31b7f184cf5ddd5a5b1d149266f252d9ac50'
 
 def download_crime_reports(start_year, end_year):
     '''
@@ -87,29 +88,30 @@ def link_reports_neighborhoods(crime_reports, community_areas):
                                                    .astype('category')
     return crime_reports
 
-def download_zipcodes():
+def download_blocks():
     '''
     Imports the dataset containg the names, numbers, and shapes of Chicago
-    zipcodes from the Chicago Open Data Portal using the SODA API.
+    2010 census blocks from the Chicago Open Data Portal using the SODA API.
 
     Returns: geopandas geodataframe of community areas
     '''
     client = Socrata('data.cityofchicago.org', APP_TOKEN)
-    max_size = 100
-    zipcodes = client.get('unjd-c2ca', limit=max_size)
-    zipcodes_df = pd.DataFrame.from_records(zipcodes)
-    zipcodes_df['zip'] = zipcodes_df.zip.astype(str)
-    zipcodes_df = zipcodes_df.loc[:, ['zip', 'the_geom']]
-    zipcodes_df['the_geom'] = zipcodes_df.the_geom\
-                                         .apply(shapely.geometry.shape)
-    zipcodes_df = geopd.GeoDataFrame(zipcodes_df, geometry='the_geom')
-    zipcodes_df.crs = {'init': 'epsg:4326'}
+    max_size = 50000
+    blocks = client.get('bt9m-d2mf', limit=max_size)
+    blocks_df = pd.DataFrame.from_records(blocks)
+    blocks_df['geoid10'] = blocks_df.geoid10.astype(str)
+    blocks_df = blocks_df.loc[:, ['geoid10', 'the_geom']]
+    blocks_df['geoid10'] = blocks_df.geoid10.apply(lambda x: x[:-3])
+    blocks_df['the_geom'] = blocks_df.the_geom\
+                                     .apply(shapely.geometry.shape)
+    blocks_df = geopd.GeoDataFrame(blocks_df, geometry='the_geom')
+    blocks_df.crs = {'init': 'epsg:4326'}
 
-    return zipcodes_df
+    return blocks_df
 
-def link_reports_zipcodes(crime_reports):
+def link_reports_blocks(crime_reports):
     '''
-    Adds a field for the zipcode in which a crime report was located to each
+    Adds a field for the blocks in which a crime report was located to each
     row of a crime reports dataset
 
     Inputs:
@@ -117,7 +119,7 @@ def link_reports_zipcodes(crime_reports):
 
     Outpus: geopandas dataframe
     '''
-    zipcodes_df = download_zipcodes()
+    blocks_df = download_blocks()
 
     crime_reports = crime_reports[crime_reports.longitude.notna() & 
                                   crime_reports.latitude.notna()]\
@@ -130,40 +132,45 @@ def link_reports_zipcodes(crime_reports):
     crime_reports = geopd.GeoDataFrame(crime_reports, geometry='the_geom')
     crime_reports.crs = {'init': 'epsg:4326'}
     
-    crime_reports = geopd.sjoin(crime_reports, zipcodes_df, how='left', 
+    crime_reports = geopd.sjoin(crime_reports, blocks_df, how='left', 
                                     op='within')
-    crime_reports = crime_reports[crime_reports.zip.notna()].copy()
+    crime_reports = crime_reports[crime_reports.geoid10.notna()].copy()
 
     return crime_reports
 
-def get_zipcode_stats(zipcodes):
+def get_block_stats():
     '''
     Downloads income, educational attainment, and race data from the 5-year ACS
-    estimates for the zipcodes in the dataset
+    estimates for the blocks in the dataset
 
     Inputs:
-    zipcodes (list of strs): a list of zipcodes to query data for
+    geoid10s (list of strs): a list of geoid10s to query data for
 
-    Returns: pandas dataframe linking zipcodes to income, educational attainment,
+    Returns: pandas dataframe linking blocks to income, educational attainment,
     and race data
 
     Citations:
     Making HTML Requests: https://urllib3.readthedocs.io/en/latest/user-guide.html
     Querying ACS Data: https://www.census.gov/content/dam/Census/data/developers/api-user-guide/api-guide.pdf
-    Reading CSV from string: 
+    Reading CSV from string: https://docs.python.org/2/library/stringio.html
     '''
-    col_dict = {'DP02_0066PE': "Percent High School (25 y/o and older)",
-                'DP02_0067PE': "Percent Bachelor's (25 y/o and older)",
-                'DP05_0037PE': "Percent white",
-                'DP05_0038PE': "Percent black",
-                'DP05_0071PE': "Percent hispanic/latino",
-                'DP03_0062E': "Median househould income (dollars)"}
-    query_address = ('http://api.census.gov/data/2017/acs/acs5/' +
-                     'profile?get={}&for=zip%20code%20tabulation%20area:{}')
+    col_dict = {'B02001_001E': 'Race sample',
+                'B02001_002E': 'White alone',
+                'B02001_003E': 'Black alone',
+                'B03003_001E': 'Hispanic or Latino sample',
+                'B03003_003E': 'Hispanic or Latino',
+                'B15003_001E': 'Education sample',
+                'B15003_022E': "Bachelor's",
+                'B15003_023E': "Master's",
+                'B15003_024E': "Professional",
+                'B15003_025E': 'PhD',
+                'B19301_001E': 'Per Capita Income, last 12 months (2017 inflation adjusted dollars)'}
+    query_address = ('http://api.census.gov/data/2017/acs/acs5?' +
+                     'get={}&for=block%20group:*&in=state:17+' +
+                     'county:031+tract:*&key={}')
     get_params = ",".join(list(col_dict.keys()))
-    for_params = ",".join(zipcodes)
-    query_address = query_address.format(get_params, for_params)
-    
+    query_address = query_address.format('NAME,' + get_params, CENSUS_API)
+
     http = urllib3.PoolManager()
     urllib3.disable_warnings()
     request = http.request('GET', query_address)
@@ -171,17 +178,62 @@ def get_zipcode_stats(zipcodes):
     contents = contents.replace('[', '')
     contents = contents.replace(']', '')
 
-    zip_stats = pd.read_csv(StringIO(contents))\
-                  .rename(col_dict, axis=1)\
-                  .rename({'zip code tabulation area': 'zip'}, axis=1)\
-                  .drop('Unnamed: 7', axis=1)
-    zip_stats['zip'] = zip_stats.zip.astype(str)
+    col_types = {'B02001_001E': float,
+                 'B02001_002E': float,
+                 'B02001_003E': float,
+                 'B03003_001E': float,
+                 'B03003_003E': float,
+                 'B15003_001E': float,
+                 'B15003_022E': float,
+                 'B15003_023E': float,
+                 'B15003_024E': float,
+                 'B15003_025E': float,
+                 'B19301_001E': float,
+                 'state': str,
+                 'county': str,
+                 'tract': str,
+                 'block group': str}
+    block_stats = pd.read_csv(StringIO(contents), dtype=col_types,
+                              usecols=list(col_types.keys()))\
+                    .rename(col_dict, axis=1)
 
-    return zip_stats
+    block_stats = transform_block_stats(block_stats)
 
-def link_reports_zip_stats(crime_reports, zip_stats):
+    return block_stats
+
+def transform_block_stats(block_stats):
     '''
-    Links crime reports with zipcode level statistics from the 5-year ACS
+    Transforms raws block-by-block statistics to the desired format
+
+    Inputs:
+    block_stats (pandas): each row is a block group and associated statistics
+
+    Returns: pandas dataframe
+    '''
+    block_stats = block_stats.replace({-666666666: float('nan')})
+
+    block_stats['geoid10'] = block_stats.apply(lambda x: x.state + x.county + 
+                                               x.tract + x['block group'],
+                                               axis=1)
+
+    block_stats['White alone (%)'] = (block_stats['White alone'] / 
+                                  block_stats['Race sample'] * 100)
+    block_stats['Black alone (%)'] = (block_stats['Black alone'] / 
+                                  block_stats['Race sample'] * 100)
+    block_stats['Hispanic or Latino (%)'] = (block_stats['Hispanic or Latino'] / 
+                                          block_stats['Hispanic or Latino sample'] * 100)
+
+    block_stats["Bachelor's or more (>= 25 y/o) (%)"] = ((block_stats["Bachelor's"]
+        + block_stats["Master's"] + block_stats['Professional'] + 
+        block_stats['PhD']) / block_stats['Education sample'] * 100)
+
+    return block_stats.loc[:, ['geoid10', 'White alone (%)', 'Black alone (%)',
+                               'Hispanic or Latino (%)', "Bachelor's or more (>= 25 y/o) (%)",
+                               'Per Capita Income, last 12 months (2017 inflation adjusted dollars)']]
+
+def link_reports_block_stats(crime_reports, zip_stats):
+    '''
+    Links crime reports with block group evel statistics from the 5-year ACS
 
     Inputs:
     crime_reports (pandas dataframe): each row is a crime report
@@ -189,7 +241,7 @@ def link_reports_zip_stats(crime_reports, zip_stats):
 
     Returns: pandas dataframe
     '''
-    crime_reports = pd.merge(crime_reports, zip_stats, on='zip', how='left')
+    crime_reports = pd.merge(crime_reports, zip_stats, on='geoid10', how='left')
     return crime_reports
 
 def summarize_types(crime_reports):
@@ -231,6 +283,9 @@ def summarize_monthly(crime_reports):
 
     Inputs:
     crime_reports (pandas dataframe): each row is a crime report
+
+    Citations:
+    Creating month (text) labels: https://matplotlib.org/gallery/text_labels_and_annotations/date.html
     '''
     crime_reports = crime_reports.copy()
     f, ax = plt.subplots(nrows=1, ncols=1)
@@ -243,7 +298,6 @@ def summarize_monthly(crime_reports):
                             .reset_index()\
                             .rename({'arrest': 'counts'}, axis=1)
 
-    #https://matplotlib.org/gallery/text_labels_and_annotations/date.html
     sns.lineplot(x='month', y='counts', hue='year', palette=['r', 'b'],
                  data=by_month, ax=ax)
     month_format = mdates.DateFormatter('%B')
@@ -265,6 +319,10 @@ def summarize_types_change(crime_reports, start_year, end_year):
     crime_reports (pandas dataframe): each row is a crime report
     start_year: the base year
     end_year: the year to measue change to
+
+    Citations:
+    Wrapping long axis titles: https://stackoverflow.com/questions/15740682/
+                               https://stackoverflow.com/questions/11244514/
     '''
     f, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, gridspec_kw={'hspace': 0.7})
     by_time_by_type = crime_reports.groupby(['year', 'primary_type'])\
@@ -278,13 +336,14 @@ def summarize_types_change(crime_reports, start_year, end_year):
 
     #Decreases bar graph
     decreases = by_time_by_type.head(5)
-    sns.barplot(x=decreases.index, y=decreases['Change (absolute)'], palette='Blues', ax=ax1)
+    sns.barplot(x=decreases.index, y=decreases['Change (absolute)'], 
+                palette='Blues', ax=ax1)
     ax1.axhline()
     ax1.set_ylabel('Change in number of reports')
     title = "Types with largest absolute decrease between {} and {}"\
             .format(start_year, end_year)
     ax1.set_title(title)
-    labels = ['\n'.join(wrap(l.get_text(), 12)) for l in ax1.get_xticklabels()] #https://stackoverflow.com/questions/11244514/
+    labels = ['\n'.join(wrap(l.get_text(), 12)) for l in ax1.get_xticklabels()]
     ax1.set_xticklabels(labels)
     ax1.set_xlabel("")
 
@@ -312,12 +371,7 @@ def summarize_neighborhoods(crime_reports, community_areas):
     by_neighborhood = crime_reports.community_area\
                                    .value_counts()\
                                    .sort_values()
-    print('Mean and standard deviation of crime reports per neighborhood:')
-    print(by_neighborhood.agg([np.mean, np.std]))
-    print()
-
-    print('Quartiles of crime reports per neighborhood:')
-    print(by_neighborhood.quantile([0, .25, .5, .75, 1])) 
+    print(by_neighborhood.describe())
     print()
 
     graph_neighborhood_dist(crime_reports)
@@ -329,7 +383,7 @@ def summarize_neighborhoods(crime_reports, community_areas):
     print('Number of crime reports by neighborhood:')
     print(by_neighborhood)
 
-def graph_neighborhood_dist(crime_reports, filter_dict=None):
+def graph_neighborhood_dist(crime_reports):
     '''
     Generates a histogram showing the distribution of crime reports across
     different neighborhoods
@@ -337,11 +391,6 @@ def graph_neighborhood_dist(crime_reports, filter_dict=None):
     Inputs:
     crime_reports (pandas dataframe): each row is a crime report
     '''
-    if filter_dict:
-        valid_keys = ['start_date', 'end_date', 'types']
-        crime_reports = filter_reports(crime_reports, filter_dict, valid_keys)
-
-
     by_neighborhood = crime_reports.community_area\
                                    .value_counts()\
                                    .sort_values()
@@ -368,6 +417,11 @@ def map_neighborhood_stats(crime_reports, community_areas):
     community_areas (geopandas geodataframe): each row is a community areas with
         column describing the geometry of that community area
     types (list of strings): a list of crime types to filter the data on
+
+    Citations:
+    Heatmap: https://towardsdatascience.com/lets-make-a-map-using-
+             geopandas-pandas-andg-matplotlib-to-make-a-chloropleth-map-dddc31c1983d
+             CS 122 Group Project
     '''
     by_neighborhood = crime_reports.community_area\
                                    .value_counts()\
@@ -390,8 +444,43 @@ def map_neighborhood_stats(crime_reports, community_areas):
                                    vmin=scale_min, vmax=scale_max))
     legend._A = []
     f.colorbar(legend, ax=ax)
-    f.suptitle('Number of crimes per neighborhood')
+    f.suptitle('Number of crime reports per neighborhood')
     
     plt.show()
 
+def summarize_by_block(crime_reports, summary_field):
+    '''
+    Summarizes the number of occurences of a given block in a set of crime_reports
 
+    Inputs:
+    crime_reports (pandas dataframe): each row is a crime report #need to have geoid10
+    summary_field (str): field to summaries the data over, for example passing
+        'primary_type' as the summary field breaks out a data frame where
+        each row is contains a block and the number of each type of crime
+        that occurred in that block
+
+    Returns: pandas dataframe
+    '''
+    by_block = crime_reports.groupby(['block', 'geoid10', summary_field])\
+                            .count()\
+                            .iloc[:, 0]\
+                            .unstack(level=2, fill_value=0)\
+                            .reset_index()
+
+    return by_block
+
+def describe_blocks(block_summaries, block_stats):
+    '''
+    Describes the race, education, and income levels of blocks included in the
+    block summaries dataset
+
+    Inputs:
+    block_summaries: 
+    '''
+    linked = link_reports_block_stats(block_summaries, block_stats)
+    cols_to_agg = ['White alone', 'Black alone', 'Hispanic or Latino',
+                   "Bachelor's or more (>= 25 y/o)",
+                   'Per Capita Income, last 12 months (2017 inflation adjusted dollars)']
+    print(linked[cols_to_agg].describe())
+
+    pass
