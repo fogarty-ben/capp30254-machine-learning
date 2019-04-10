@@ -4,6 +4,7 @@ CAPP 30254: Machine Learning for Public Policy (Spring 2019)
 
 Ben Fogarty
 '''
+
 from io import StringIO
 from textwrap import wrap
 from sodapy import Socrata
@@ -18,8 +19,25 @@ import shapely
 import urllib3
 
 
-APP_TOKEN = 'rxYsI6aQTVNNqzshFFLTdecYL'
-CENSUS_API = 'a09a31b7f184cf5ddd5a5b1d149266f252d9ac50'
+APP_TOKEN = ''
+CENSUS_API = ''
+
+def read_api_tokens(filename):
+    '''
+    Reads in API keys from a locally stored file. Within the filed, the Chicago
+    Open Data Portal API key should be first, followed by the Census Bureau
+    API key. Updats APP_TOKEN and CENSUS_API global variables.
+
+    Inputs:
+    filename (str): the location of the file to load api keys from
+    '''
+    with open(filename) as f:
+        tokens = f.readlines()
+    global APP_TOKEN
+    APP_TOKEN = tokens[0].strip()
+
+    global CENSUS_API
+    CENSUS_API = tokens[1].strip()
 
 def download_crime_reports(start_year, end_year):
     '''
@@ -172,8 +190,7 @@ def get_block_stats():
                 'B15003_023E': "Master's",
                 'B15003_024E': "Professional",
                 'B15003_025E': 'PhD',
-                'B19301_001E': ('Per Capita Income, last 12 months' +
-                                '(2017 inflation adjusted dollars)')}
+                'B19301_001E': 'Per Capita Income, last 12 months (2017 inflation adjusted dollars)'}
     query_address = ('http://api.census.gov/data/2017/acs/acs5?' +
                      'get={}&for=block%20group:*&in=state:17+' +
                      'county:031+tract:*&key={}')
@@ -206,20 +223,20 @@ def get_block_stats():
                               usecols=list(col_types.keys()))\
                     .rename(col_dict, axis=1)
 
-    transform_block_stats(block_stats)
+    block_stats = transform_block_stats(block_stats)
 
     return block_stats
 
 def transform_block_stats(block_stats):
     '''
-    Transforms raws block-by-block statistics to the desired format. All changes
-    are made in place.
+    Transforms raws block-by-block statistics to the desired format
 
     Inputs:
     block_stats (pandas): each row is a block group and associated statistics
 
     Returns: pandas dataframe
     '''
+    block_stats.copy() #shallow copy, avoids side effects
     block_stats = block_stats.replace({-666666666: float('nan')})
 
     block_stats['geoid10'] = block_stats.apply(lambda x: x.state + x.county +
@@ -237,6 +254,8 @@ def transform_block_stats(block_stats):
     block_stats["Bachelor's or more (>= 25 y/o) (%)"] = ((block_stats["Bachelor's"]
         + block_stats["Master's"] + block_stats['Professional'] +
         block_stats['PhD']) / block_stats['Education sample'] * 100)
+
+    return block_stats
 
 def link_reports_block_stats(crime_reports, block_stats):
     '''
@@ -504,4 +523,4 @@ def describe_blocks(block_summaries, block_stats):
                    'Hispanic or Latino (%)', "Bachelor's or more (>= 25 y/o) (%)",
                    'Per Capita Income, last 12 months (2017 inflation adjusted dollars)']
 
-    print(linked[cols_to_agg].describe())
+    return linked[cols_to_agg].describe()
