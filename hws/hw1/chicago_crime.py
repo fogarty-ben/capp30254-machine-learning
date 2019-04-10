@@ -4,57 +4,57 @@ CAPP 30254: Machine Learning for Public Policy (Spring 2019)
 
 Ben Fogarty
 '''
-
+from io import StringIO
+from textwrap import wrap
 from sodapy import Socrata
-import pandas as pd
 import geopandas as geopd
-import shapely
-import numpy as np
-import seaborn as sns
+import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-from textwrap import wrap
 import matplotlib as mpl
+import numpy as np
+import seaborn as sns
+import shapely
 import urllib3
-from io import StringIO
+
 
 APP_TOKEN = '***REMOVED***'
 CENSUS_API = '***REMOVED***'
 
 def download_crime_reports(start_year, end_year):
     '''
-    Imports the crime data from the Chicago open data portal using the SODA API.
+    Imports crime reports data from the Chicago open data portal using the SODA
+    API.
 
     Inputs:
     start_year (int): the first year to download crime reports from (valid input
         is 2001-2018)
     end_year (int): the last year to dowload crime reports from (valid input is
         2001-2018)
-    community_areas (geopandas geodataframe or pandas dataframe): each row is a
-        community area with the area number in a column titled 'area_number' and
-        the community name in a column title 'community'
 
-    Returns: geopandas dataframe of crime reports from the specified years
+    Returns: pandas dataframe where each row is a crime report
     '''
-    coltypes = {'longitude': float,
-                'latitude': float}
+    coltypes = {'latitude': float,
+                'longitude': float,
+                'year': int
+                }
     client = Socrata('data.cityofchicago.org', APP_TOKEN)
     where_clause = 'year between {} and {}'.format(start_year, end_year)
     max_size = int(6.85 * 10 ** 6)
     results = client.get('6zsd-86xi', where=where_clause, limit=max_size)
     results_df = pd.DataFrame.from_records(results)\
                              .astype(coltypes)
-    
+
     results_df.date = pd.to_datetime(results_df.date)
 
     return results_df
 
 def download_community_areas():
     '''
-    Imports the dataset containg the names, numbers, and shapes of Chicago
-    community areas from the Chicago Open Data Portal using the SODA API.
+    Imports names, numbers, and shapes of Chicago community areas from the
+    Chicago Open Data Portal using the SODA API.
 
-    Returns: geopandas geodataframe of community areas
+    Returns: geopandas geodataframe where each row is a community area
     '''
     client = Socrata('data.cityofchicago.org', APP_TOKEN)
     max_size = 100
@@ -74,12 +74,13 @@ def link_reports_neighborhoods(crime_reports, community_areas):
     name of the community area
 
     Inputs:
-    crime_reports (pandas dataframe): each row is a crime report
+    crime_reports (pandas dataframe): each row is a crime report with a numeric
+        column titled 'community_areas' that contains data on
     community_areas (geopandas geodataframe or pandas dataframe): each row is a
         community area with the area number in a column titled 'area_number' and
         the community name in a column title 'community'
 
-    Returns: pandas dataframe of crime reports
+    Returns: pandas dataframe where each row is a crime_report
     '''
     communities = pd.Series(index=community_areas.area_number.values,
                             data=community_areas.community.values)
@@ -90,18 +91,20 @@ def link_reports_neighborhoods(crime_reports, community_areas):
 
 def download_blocks():
     '''
-    Imports the dataset containg the names, numbers, and shapes of Chicago
-    2010 census blocks from the Chicago Open Data Portal using the SODA API.
+    Imports the names, numbers, and shapes of Chicago 2010 census blocks from
+    the Chicago Open Data Portal using the SODA API.
 
-    Returns: geopandas geodataframe of community areas
+    Returns: geopandas geodataframe where each row is a community area
     '''
     client = Socrata('data.cityofchicago.org', APP_TOKEN)
     max_size = 50000
     blocks = client.get('bt9m-d2mf', limit=max_size)
     blocks_df = pd.DataFrame.from_records(blocks)
     blocks_df['geoid10'] = blocks_df.geoid10.astype(str)
-    blocks_df = blocks_df.loc[:, ['geoid10', 'the_geom']]
+    #generates the geoid10 for the census block group
     blocks_df['geoid10'] = blocks_df.geoid10.apply(lambda x: x[:-3])
+    blocks_df = blocks_df.loc[:, ['geoid10', 'the_geom']]
+
     blocks_df['the_geom'] = blocks_df.the_geom\
                                      .apply(shapely.geometry.shape)
     blocks_df = geopd.GeoDataFrame(blocks_df, geometry='the_geom')
@@ -111,29 +114,35 @@ def download_blocks():
 
 def link_reports_blocks(crime_reports):
     '''
-    Adds a field for the blocks in which a crime report was located to each
-    row of a crime reports dataset
+    Performs a spatial join to link crime reports with the 2010 Census block in
+    in which they occurred. Reports which cannot be linked are automatically
+    dropped from the resulting geodataframe
 
     Inputs:
-    crime_reports (geopandas dataframe): each row is a crime report
+    crime_reports (pandas dataframe): each row is a crime report
 
-    Outpus: geopandas dataframe
+    Returns: geopandas geodataframe, where each row is a crime_report
+
+    Citation:
+    Creating geopandas geodata frame from dataframe with coordinates:
+        http://geopandas.org/gallery/create_geopandas_from_pandas.html?
+        highlight=zip
     '''
     blocks_df = download_blocks()
 
-    crime_reports = crime_reports[crime_reports.longitude.notna() & 
+    crime_reports = crime_reports[crime_reports.longitude.notna() &
                                   crime_reports.latitude.notna()]\
-                                 .copy()
-    crime_reports['the_geom'] = list(zip(crime_reports.longitude, 
+                                 .copy() #shallow copy to avoid side effects
+    crime_reports['the_geom'] = list(zip(crime_reports.longitude,
                                          crime_reports.latitude))
     crime_reports['the_geom'] = crime_reports.the_geom\
-                                         .apply(shapely.geometry.Point)
+                                             .apply(shapely.geometry.Point)
 
     crime_reports = geopd.GeoDataFrame(crime_reports, geometry='the_geom')
     crime_reports.crs = {'init': 'epsg:4326'}
-    
-    crime_reports = geopd.sjoin(crime_reports, blocks_df, how='left', 
-                                    op='within')
+
+    crime_reports = geopd.sjoin(crime_reports, blocks_df, how='left',
+                                op='within')
     crime_reports = crime_reports[crime_reports.geoid10.notna()].copy()
 
     return crime_reports
@@ -141,17 +150,16 @@ def link_reports_blocks(crime_reports):
 def get_block_stats():
     '''
     Downloads income, educational attainment, and race data from the 5-year ACS
-    estimates for the blocks in the dataset
+    estimates for the block groups in the dataset
 
-    Inputs:
-    geoid10s (list of strs): a list of geoid10s to query data for
-
-    Returns: pandas dataframe linking blocks to income, educational attainment,
-    and race data
+    Returns: pandas dataframe, where each row is a block group with income,
+        educational attainment, and race data
 
     Citations:
-    Making HTML Requests: https://urllib3.readthedocs.io/en/latest/user-guide.html
-    Querying ACS Data: https://www.census.gov/content/dam/Census/data/developers/api-user-guide/api-guide.pdf
+    Making HTML Requests: https://urllib3.readthedocs.io/en/latest/
+        user-guide.html
+    Querying ACS Data: https://www.census.gov/content/dam/Census/data/
+        developers/api-user-guide/api-guide.pdf
     Reading CSV from string: https://docs.python.org/2/library/stringio.html
     '''
     col_dict = {'B02001_001E': 'Race sample',
@@ -164,7 +172,8 @@ def get_block_stats():
                 'B15003_023E': "Master's",
                 'B15003_024E': "Professional",
                 'B15003_025E': 'PhD',
-                'B19301_001E': 'Per Capita Income, last 12 months (2017 inflation adjusted dollars)'}
+                'B19301_001E': ('Per Capita Income, last 12 months' +
+                                '(2017 inflation adjusted dollars)')}
     query_address = ('http://api.census.gov/data/2017/acs/acs5?' +
                      'get={}&for=block%20group:*&in=state:17+' +
                      'county:031+tract:*&key={}')
@@ -197,13 +206,14 @@ def get_block_stats():
                               usecols=list(col_types.keys()))\
                     .rename(col_dict, axis=1)
 
-    block_stats = transform_block_stats(block_stats)
+    transform_block_stats(block_stats)
 
     return block_stats
 
 def transform_block_stats(block_stats):
     '''
-    Transforms raws block-by-block statistics to the desired format
+    Transforms raws block-by-block statistics to the desired format. All changes
+    are made in place.
 
     Inputs:
     block_stats (pandas): each row is a block group and associated statistics
@@ -212,55 +222,57 @@ def transform_block_stats(block_stats):
     '''
     block_stats = block_stats.replace({-666666666: float('nan')})
 
-    block_stats['geoid10'] = block_stats.apply(lambda x: x.state + x.county + 
+    block_stats['geoid10'] = block_stats.apply(lambda x: x.state + x.county +
                                                x.tract + x['block group'],
                                                axis=1)
 
-    block_stats['White alone (%)'] = (block_stats['White alone'] / 
-                                  block_stats['Race sample'] * 100)
-    block_stats['Black alone (%)'] = (block_stats['Black alone'] / 
-                                  block_stats['Race sample'] * 100)
-    block_stats['Hispanic or Latino (%)'] = (block_stats['Hispanic or Latino'] / 
-                                          block_stats['Hispanic or Latino sample'] * 100)
+    block_stats['White alone (%)'] = (block_stats['White alone'] /
+                                      block_stats['Race sample'] * 100)
+    block_stats['Black alone (%)'] = (block_stats['Black alone'] /
+                                      block_stats['Race sample'] * 100)
+    block_stats['Hispanic or Latino (%)'] = (block_stats['Hispanic or Latino'] /
+                                             block_stats['Hispanic or Latino sample']
+                                             * 100)
 
     block_stats["Bachelor's or more (>= 25 y/o) (%)"] = ((block_stats["Bachelor's"]
-        + block_stats["Master's"] + block_stats['Professional'] + 
+        + block_stats["Master's"] + block_stats['Professional'] +
         block_stats['PhD']) / block_stats['Education sample'] * 100)
 
-    return block_stats.loc[:, ['geoid10', 'White alone (%)', 'Black alone (%)',
-                               'Hispanic or Latino (%)', "Bachelor's or more (>= 25 y/o) (%)",
-                               'Per Capita Income, last 12 months (2017 inflation adjusted dollars)']]
-
-def link_reports_block_stats(crime_reports, zip_stats):
+def link_reports_block_stats(crime_reports, block_stats):
     '''
-    Links crime reports with block group evel statistics from the 5-year ACS
+    Links crime reports data with block group level statistics from the 5-year ACS
 
     Inputs:
-    crime_reports (pandas dataframe): each row is a crime report
-    zip_stats (pandas dataframe): each row is a zipcode and associated statistics
+    reports_df (pandas dataframe): each record contains a column 'geoid10' that
+        denotes that records 2010 Census block group geoid
+    block_stats (pandas dataframe): each row is a block groups with column
+        'geoid10' denoting the row's 2010 Census block group geoid
+        and associated statistics
 
     Returns: pandas dataframe
     '''
-    crime_reports = pd.merge(crime_reports, zip_stats, on='geoid10', how='left')
+    crime_reports = pd.merge(crime_reports, block_stats, on='geoid10', how='left')
     return crime_reports
 
-def summarize_types(crime_reports):
+def summarize_on_field(crime_reports, summary_field):
     '''
-    Summarizes the types of crime in a set of reported crimes
+    Summarizes a set of reported crimes by dividing it on some summary field
 
     Inputs:
     crime_reports (pandas dataframe): each row is a crime report
+    summary_field (str): field to summaries the data over, for example
+        'primary_type'
     '''
-    by_type = crime_reports.primary_type\
-                           .value_counts()\
-                           .to_frame()\
-                           .rename({'primary_type': 'Count'}, axis=1)
+    summarized = crime_reports[summary_field]\
+                              .value_counts()\
+                              .to_frame()\
+                              .rename({'primary_type': 'Count'}, axis=1)
 
-    by_type['Percentage'] = by_type.apply(lambda x: x.Count / np.sum(by_type.Count) * 100,
-                                                 axis=1)
-    by_type.sort_values('Percentage', ascending=False)
-    print('Dividing based on types of crime:')
-    print(by_type)
+    summarized['Percentage'] = summarized.apply(lambda x: (x.Count /
+                                                        np.sum(summarized.Count) * 100),
+                                             axis=1)
+    summarized.sort_values('Percentage', ascending=False)
+    print(summarized)
 
 def summarize_yearly(crime_reports):
     '''
@@ -285,7 +297,8 @@ def summarize_monthly(crime_reports):
     crime_reports (pandas dataframe): each row is a crime report
 
     Citations:
-    Creating month (text) labels: https://matplotlib.org/gallery/text_labels_and_annotations/date.html
+    Creating month (text) labels: https://matplotlib.org/gallery/
+        text_labels_and_annotations/date.html
     '''
     crime_reports = crime_reports.copy()
     f, ax = plt.subplots(nrows=1, ncols=1)
@@ -307,20 +320,18 @@ def summarize_monthly(crime_reports):
     ax.set_xlabel('')
     ax.set_ylabel('Number of crime reports')
     ax.set_title('Number of crime reports by month')
-    
+
     plt.subplots_adjust(bottom=0.15)
     plt.show()
 
 def summarize_yoy_change(crime_reports, summary_field, start_year, end_year):
     '''
-    Summarizes year to year changes in types of crime reported
+    Summarizes year to year changes in crime reports over some specified field
 
     Inputs:
     crime_reports (pandas dataframe): each row is a crime report
-    summary_field (str): field to summaries the data over, for example passing
-        'primary_type' as the summary field breaks out a data frame where
-        each row is contains a block and the number of each type of crime
-        that occurred in that block
+    summary_field (str): field to summaries the data over, for example
+        'primary_type'
     start_year: the base year
     end_year: the year to measue change to
 
@@ -329,18 +340,18 @@ def summarize_yoy_change(crime_reports, summary_field, start_year, end_year):
                                https://stackoverflow.com/questions/11244514/
     '''
     f, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, gridspec_kw={'hspace': 0.7})
-    by_time_by_type = crime_reports.groupby(['year', summary_field])\
+    summarized = crime_reports.groupby(['year', summary_field])\
                                    .count()\
                                    .iloc[:, 0]\
                                    .unstack(level=0, fill_value=0)
-    by_time_by_type['Change (absolute)'] = (by_time_by_type[end_year] - 
-                                 by_time_by_type[start_year])
-    by_time_by_type.sort_values('Change (absolute)', inplace=True)
-    print(by_time_by_type.to_string())
+    summarized['Change (absolute)'] = (summarized[end_year] -
+                                       summarized[start_year])
+    summarized.sort_values('Change (absolute)', inplace=True)
+    print(summarized.to_string())
 
     #Decreases bar graph
-    decreases = by_time_by_type.head(5)
-    sns.barplot(x=list(decreases.index), y=decreases['Change (absolute)'], 
+    decreases = summarized.head(5)
+    sns.barplot(x=list(decreases.index), y=decreases['Change (absolute)'],
                 palette='Blues', ax=ax1)
     ax1.axhline()
     ax1.set_ylabel('Change in number of reports')
@@ -352,8 +363,9 @@ def summarize_yoy_change(crime_reports, summary_field, start_year, end_year):
     ax1.set_xlabel("")
 
     #Increases bar graph
-    increases = by_time_by_type.tail(5)
-    sns.barplot(x=list(increases.index), y=increases['Change (absolute)'], palette='Reds', ax=ax2) 
+    increases = summarized.tail(5)
+    sns.barplot(x=list(increases.index), y=increases['Change (absolute)'],
+                palette='Reds', ax=ax2)
     ax2.axhline()
     ax2.set_ylabel('Change in numbert of reports')
     title = "Largest absolute increase between {} and {}"\
@@ -362,7 +374,7 @@ def summarize_yoy_change(crime_reports, summary_field, start_year, end_year):
     labels = ['\n'.join(wrap(l.get_text(), 10)) for l in ax2.get_xticklabels()]
     ax2.set_xticklabels(labels)
     ax2.set_xlabel("")
-    
+
     plt.show()
 
 def summarize_neighborhoods(crime_reports, community_areas):
@@ -371,6 +383,7 @@ def summarize_neighborhoods(crime_reports, community_areas):
 
     Inputs:
     crime_reports (pandas dataframe): each row is a crime report
+    community_areas (geopandas geodataframe): each row is a neighborhood
     '''
     by_neighborhood = crime_reports.community_area\
                                    .value_counts()\
@@ -402,7 +415,7 @@ def graph_neighborhood_dist(crime_reports):
     f, ax = plt.subplots(nrows=1, ncols=1)
     sns.set()
     sns.distplot(by_neighborhood, bins=range(0, 32001, 1000), kde=False, ax=ax)
-    
+
     ax.set_xticks(range(0, 32001, 1000), minor=True)
     ax.tick_params(axis='x', which='minor', bottom=True)
     ax.set_xlabel('Number of crime reports')
@@ -418,19 +431,18 @@ def map_neighborhood_stats(crime_reports, community_areas):
 
     Inputs:
     crime_reports (pandas dataframe): each row is a crime report
-    community_areas (geopandas geodataframe): each row is a community areas with
-        column describing the geometry of that community area
-    types (list of strings): a list of crime types to filter the data on
+    community_areas (geopandas geodataframe): each row is a community area
 
     Citations:
     Heatmap: https://towardsdatascience.com/lets-make-a-map-using-
-             geopandas-pandas-andg-matplotlib-to-make-a-chloropleth-map-dddc31c1983d
-             CS 122 Group Project
+             geopandas-pandas-andg-matplotlib-to-make-a-chloropleth-map-
+             dddc31c1983d
+             (previously used in CS 122 Group Project)
     '''
     by_neighborhood = crime_reports.community_area\
                                    .value_counts()\
                                    .reset_index()\
-                                   .rename({'community_area': 'counts', 
+                                   .rename({'community_area': 'counts',
                                             'index': 'community'}, axis=1)
 
     by_neighborhood = pd.merge(by_neighborhood, community_areas, on='community')
@@ -440,7 +452,7 @@ def map_neighborhood_stats(crime_reports, community_areas):
     f, ax = plt.subplots(nrows=1, ncols=1)
     by_neighborhood.plot(column='counts', cmap='coolwarm', linewidth=0.8,
                          linestyle='-', ax=ax)
-    
+
     ax.axis('off')
     scale_min = min(by_neighborhood.counts)
     scale_max = max(by_neighborhood.counts)
@@ -449,19 +461,20 @@ def map_neighborhood_stats(crime_reports, community_areas):
     legend._A = []
     f.colorbar(legend, ax=ax)
     f.suptitle('Number of crime reports per neighborhood')
-    
+
     plt.show()
 
 def summarize_by_block(crime_reports, summary_field):
     '''
-    Summarizes the number of occurences of a given block in a set of crime_reports
+    Summarizes the profile of each block in a set of crime reports over a given
+    summary field
 
     Inputs:
-    crime_reports (pandas dataframe): each row is a crime report #need to have geoid10
-    summary_field (str): field to summaries the data over, for example passing
-        'primary_type' as the summary field breaks out a data frame where
-        each row is contains a block and the number of each type of crime
-        that occurred in that block
+    crime_reports (pandas dataframe): each row is a crime report with a 'block'
+        column giving the name of the block the crime occurred on and a
+        'geoid10' giving the geoid of the block's 2010 Census block group
+    summary_field (str): field to summarize the data over, for example
+        'primary_type'
 
     Returns: pandas dataframe
     '''
@@ -479,10 +492,16 @@ def describe_blocks(block_summaries, block_stats):
     block summaries dataset
 
     Inputs:
-    block_summaries: 
+    block_summaries (pandas dataframe): each row is a summary of each block in
+        a set of crime reports with a geoid10 column that contains the geoid
+        of the block's 2010 Census block group
+    block_stats (pandas dataframe): each row is demographic statistics on a
+        block group and a geoid10 column containg the geoid of the block group's
+        2010 Census block group
     '''
     linked = link_reports_block_stats(block_summaries, block_stats)
-    cols_to_agg = ['White alone (%)', 'Black alone (%)', 'Hispanic or Latino (%)',
-                   "Bachelor's or more (>= 25 y/o) (%)",
+    cols_to_agg = ['White alone (%)', 'Black alone (%)',
+                   'Hispanic or Latino (%)', "Bachelor's or more (>= 25 y/o) (%)",
                    'Per Capita Income, last 12 months (2017 inflation adjusted dollars)']
-    return linked[cols_to_agg].describe()
+
+    print(linked[cols_to_agg].describe())
