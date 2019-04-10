@@ -311,12 +311,16 @@ def summarize_monthly(crime_reports):
     plt.subplots_adjust(bottom=0.15)
     plt.show()
 
-def summarize_types_change(crime_reports, start_year, end_year):
+def summarize_yoy_change(crime_reports, summary_field, start_year, end_year):
     '''
     Summarizes year to year changes in types of crime reported
 
     Inputs:
     crime_reports (pandas dataframe): each row is a crime report
+    summary_field (str): field to summaries the data over, for example passing
+        'primary_type' as the summary field breaks out a data frame where
+        each row is contains a block and the number of each type of crime
+        that occurred in that block
     start_year: the base year
     end_year: the year to measue change to
 
@@ -325,10 +329,10 @@ def summarize_types_change(crime_reports, start_year, end_year):
                                https://stackoverflow.com/questions/11244514/
     '''
     f, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, gridspec_kw={'hspace': 0.7})
-    by_time_by_type = crime_reports.groupby(['year', 'primary_type'])\
+    by_time_by_type = crime_reports.groupby(['year', summary_field])\
                                    .count()\
-                                   .arrest\
-                                   .unstack(level=0)
+                                   .iloc[:, 0]\
+                                   .unstack(level=0, fill_value=0)
     by_time_by_type['Change (absolute)'] = (by_time_by_type[end_year] - 
                                  by_time_by_type[start_year])
     by_time_by_type.sort_values('Change (absolute)', inplace=True)
@@ -336,26 +340,26 @@ def summarize_types_change(crime_reports, start_year, end_year):
 
     #Decreases bar graph
     decreases = by_time_by_type.head(5)
-    sns.barplot(x=decreases.index, y=decreases['Change (absolute)'], 
+    sns.barplot(x=list(decreases.index), y=decreases['Change (absolute)'], 
                 palette='Blues', ax=ax1)
     ax1.axhline()
     ax1.set_ylabel('Change in number of reports')
-    title = "Types with largest absolute decrease between {} and {}"\
+    title = "Largest absolute decrease between {} and {}"\
             .format(start_year, end_year)
     ax1.set_title(title)
-    labels = ['\n'.join(wrap(l.get_text(), 12)) for l in ax1.get_xticklabels()]
+    labels = ['\n'.join(wrap(l.get_text(), 10)) for l in ax1.get_xticklabels()]
     ax1.set_xticklabels(labels)
     ax1.set_xlabel("")
 
     #Increases bar graph
     increases = by_time_by_type.tail(5)
-    sns.barplot(x=increases.index, y=increases['Change (absolute)'], palette='Reds', ax=ax2) 
+    sns.barplot(x=list(increases.index), y=increases['Change (absolute)'], palette='Reds', ax=ax2) 
     ax2.axhline()
     ax2.set_ylabel('Change in numbert of reports')
-    title = "Types with largest absolute increase between {} and {}"\
+    title = "Largest absolute increase between {} and {}"\
             .format(start_year, end_year)
     ax2.set_title(title)
-    labels = ['\n'.join(wrap(l.get_text(), 12)) for l in ax2.get_xticklabels()]
+    labels = ['\n'.join(wrap(l.get_text(), 10)) for l in ax2.get_xticklabels()]
     ax2.set_xticklabels(labels)
     ax2.set_xlabel("")
     
