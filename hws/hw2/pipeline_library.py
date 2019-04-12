@@ -44,6 +44,9 @@ def show_distribution(df, variable):
 		of a column in the dataframe
 
 	Returns: matplotlib figure
+
+	Citations:
+	Locating is_numeric_dtype: https://stackoverflow.com/questions/19900202/
 	'''
 	sns.set()
 	if pd.api.types.is_numeric_dtype(df[variable]):
@@ -64,3 +67,21 @@ def show_distribution(df, variable):
 	plt.subplots_adjust(hspace=.5, wspace=.5)
 
 	return f
+
+def pw_correlate(df, variables):
+	'''
+	Calculates a table of pairwise correlations between numberic variables.
+
+	Inputs:
+	df (pandas dataframe): dataframe containing the variables to calculate
+		pairwise correlation between
+	variables (list of strs): the variables to calculate pairwise correlations
+		between; each passed str must be name of a numeric type column in the
+		dataframe
+
+	Returns: pandas dataframe
+	'''
+	corr_table = np.corrcoef(df.loc[:, variables].dropna(), rowvar=False)
+	corr_table = pd.DataFrame(corr_table, index=variables, columns=variables)
+	
+	return corr_table
