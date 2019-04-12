@@ -10,6 +10,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
+from textwrap import wrap
 
 def read_csv(filepath, cols=None, col_types=None):
 	'''
@@ -64,11 +65,11 @@ def show_distribution(df, variable):
 		ax.set_ylabel('Count')
 		
 	f.suptitle('Distribution of {}'.format(variable))
-	plt.subplots_adjust(hspace=.5, wspace=.5)
+	f.subplots_adjust(hspace=.5, wspace=.5)
 
 	return f
 
-def pw_correlate(df, variables):
+def pw_correlate(df, variables, visualize=False):
 	'''
 	Calculates a table of pairwise correlations between numberic variables.
 
@@ -76,12 +77,30 @@ def pw_correlate(df, variables):
 	df (pandas dataframe): dataframe containing the variables to calculate
 		pairwise correlation between
 	variables (list of strs): the variables to calculate pairwise correlations
-		between; each passed str must be name of a numeric type column in the
-		dataframe
+		between; each passed str must be name of a numeric type (including 
+		booleans) column in the dataframe
+	visualize (bool): optional parameter, if enabled the function prints out
+		a heat map to help draw attention to larger correlation coefficients 
 
 	Returns: pandas dataframe
+
+	Wrapping long axis labels: https://stackoverflow.com/questions/15740682/
+                               https://stackoverflow.com/questions/11244514/
 	'''
 	corr_table = np.corrcoef(df.loc[:, variables].dropna(), rowvar=False)
 	corr_table = pd.DataFrame(corr_table, index=variables, columns=variables)
 	
+	if visualize:
+		sns.set()
+		f, ax = plt.subplots(figsize=(8, 6))
+		sns.heatmap(corr_table, annot=True, fmt='.3f', linewidths=0.5, vmin=0,
+					vmax=1, square=True, cmap='coolwarm', ax=ax)
+		labels = ['-\n'.join(wrap(l.get_text(), 12)) for l in ax.get_yticklabels()]
+		ax.set_yticklabels(labels)
+		ax.tick_params(axis='both', rotation=0, labelsize='small')
+		f.suptitle('Correlation Table')
+		f.subplots_adjust(left=0.25)
+		f.tight_layout()
+		f.show()
+
 	return corr_table
