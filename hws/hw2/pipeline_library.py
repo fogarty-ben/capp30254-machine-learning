@@ -57,7 +57,7 @@ def show_distribution(df, variable):
 					 rug=True, ax=ax2)
 		ax1.set_title('Histogram')
 		ax1.set_ylabel('Count')
-		ax2.set_title('Estimated density')
+		ax2.set_title('Estimated density') #change to box plot
 	else:
 		f, ax = plt.subplots(1, 1)
 		val_counts = df[variable].value_counts()
@@ -80,7 +80,7 @@ def pw_correlate(df, variables=None, visualize=False):
 		correlations between; each passed str must be name of a numeric type
 		(including booleans) column in the dataframe; default is all numberic
 		type variables in the dataframe
-	visualize (bool): optional parameter, if enabled the function prints out
+	visualize (bool): optional parameter, if enabled the function generates
 		a heat map to help draw attention to larger correlation coefficients 
 
 	Returns: pandas dataframe
@@ -141,7 +141,52 @@ def aggregate_by_groups(df, grouping_vars, agg_cols=None, agg_funcs=[np.mean]):
 			  [agg_cols]\
 	         .agg(agg_funcs)
 
-#def find_outliers(df)
+def find_oulier_univariate(series, visualize=False):
+	'''
+	Identifies values in a series that fall more than 1.5 * IQR below the first
+	quartile or 1.5 * IQR above the third quartile.
+
+	Inputs:
+	series (pandas series): the series to look for outliers in, must be numeric
+
+	Returns: pandas series
+	'''
+	quartiles = np.percentile(series.dropna(), [0.25, 0.75])
+	iqr = quartiles[1] - quartiles[0]
+	lower_bound = quartiles[0] - iqr
+	upper_bound = quartiles[1] + iqr
+
+	return (lower_bound > series) | (upper_bound < series)
+
+def find_outliers(df, excluded=None):
+	'''
+	Identifies outliers for each numeric column in a dataframe, and returns a 
+	data matching each record with the columns for which it is an outlier
+	and the number and percent of numeric columns for which a is an outlier.
+	Outlier is defined as any value thats fall more than 1.5 * IQR below the 
+	first quartile or 1.5 * IQR above the third quartile of all the values in a
+	column.
+
+	Inputs:
+	df (pandas dataframe): the dataframe to find outliers in
+	excluded (str list of strs): the name or a list of names of columns not to
+		look for outliers in
+
+	Returns: pandas series
+	'''
+	if not excluded:
+		excluded = []
+
+	numeric_cols = list(df.select_dtypes(include=[np.number]).columns)
+
+	outliers = df[numeric_cols]\
+				 .drop(excluded, axis=1, errors='ignore')\
+				 .apply(find_oulier_univariate, axis=0)
+	outliers['Count Outlier'] = outliers.sum(axis=1, numeric_only=True)
+	outliers['% Outlier'] = (outliers['Count Outlier'] / 
+							 (len(outliers.columns) - 1) * 100)
+
+	return outliers
 
 def replace_missing(series):
 	'''
@@ -154,13 +199,13 @@ def replace_missing(series):
 	Returns (pandas series):
 	'''
 	if pd.api.types.is_numeric_dtype(series):
-		median = np.median(series)
+		median = np.median(series.dropna())
 		return series.fillna(median)
 	else:
 		mode = series.mode().iloc[0]
 		return series.fillna(mode)
 
-def preprocess_data(df);
+def preprocess_data(df):
 	'''
 	Removes missing values, replacing them with the median value in numeric
 	fields and the modal value in non-numeric columns
@@ -171,3 +216,5 @@ def preprocess_data(df);
 	Returns: pandas dataframe
 	'''
 	return df.apply(replace_missing, axis=0)
+
+#def discretize_variable(df, variable)
