@@ -76,9 +76,9 @@ def pw_correlate(df, variables, visualize=False):
 	Inputs:
 	df (pandas dataframe): dataframe containing the variables to calculate
 		pairwise correlation between
-	variables (list of strs): the variables to calculate pairwise correlations
-		between; each passed str must be name of a numeric type (including 
-		booleans) column in the dataframe
+	variables (list of strs): the list of variables to calculate pairwise
+		correlations between; each passed str must be name of a numeric type
+		(including booleans) column in the dataframe
 	visualize (bool): optional parameter, if enabled the function prints out
 		a heat map to help draw attention to larger correlation coefficients 
 
@@ -87,20 +87,49 @@ def pw_correlate(df, variables, visualize=False):
 	Wrapping long axis labels: https://stackoverflow.com/questions/15740682/
                                https://stackoverflow.com/questions/11244514/
 	'''
-	corr_table = np.corrcoef(df.loc[:, variables].dropna(), rowvar=False)
+	corr_table = np.corrcoef(df[variables].dropna(), rowvar=False)
 	corr_table = pd.DataFrame(corr_table, index=variables, columns=variables)
 	
 	if visualize:
 		sns.set()
 		f, ax = plt.subplots(figsize=(8, 6))
-		sns.heatmap(corr_table, annot=True, fmt='.3f', linewidths=0.5, vmin=0,
+		sns.heatmap(corr_table, annot=True, fmt='.2f', linewidths=0.5, vmin=0,
 					vmax=1, square=True, cmap='coolwarm', ax=ax)
-		labels = ['-\n'.join(wrap(l.get_text(), 12)) for l in ax.get_yticklabels()]
+		
+		labels = ['-\n'.join(wrap(l.get_text(), 15)) for l in ax.get_yticklabels()]
 		ax.set_yticklabels(labels)
+		labels = ['-\n'.join(wrap(l.get_text(), 15)) for l in ax.get_xticklabels()]
+		ax.set_xticklabels(labels)
 		ax.tick_params(axis='both', rotation=0, labelsize='small')
+		ax.tick_params(axis='x', rotation=90, labelsize='small')
+
 		f.suptitle('Correlation Table')
-		f.subplots_adjust(left=0.25)
 		f.tight_layout()
 		f.show()
 
 	return corr_table
+
+def aggregate_by_groups(df, grouping_vars, agg_functions=[np.mean]):
+	'''
+	Groups rows based on the set of grouping variables and report summary
+	statistics over the other numeric variables.
+
+	Inputs:
+	df (pandas dataframe): dataframe containing the variables to calculate
+		pairwise correlation between
+	grouping_vars (str or list of strs): the variable or list of variables to
+		group on; each passed str must be name of a column in the dataframe
+	agg_functions (list of functions): optional list of fuctions to aggregate
+		with; default is mean
+
+	Returns: pandas dataframe
+	'''
+	numeric_cols = [col for col in df.columns 
+						if (pd.api.types.is_numeric_dtype(df[col]) and 
+						   col not in grouping_vars)]
+	print(numeric_cols)
+
+	return df.groupby(grouping_vars)\
+			 [numeric_cols]\
+	         .agg(agg_functions)
+
