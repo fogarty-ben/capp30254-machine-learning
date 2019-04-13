@@ -217,4 +217,45 @@ def preprocess_data(df):
 	'''
 	return df.apply(replace_missing, axis=0)
 
-#def discretize_variable(df, variable)
+def cut_variable(series, bins, labels=None):
+	'''
+	Discretizes a continuous variable into bins. Bins are half-closed, [a, b).
+
+	Inputs:
+	series (pandas series): the variable to discretize
+	bins (int or list of numerics): the binning rule:
+		- if int: cuts the variable into n equally sized bins; the range of the
+		  variable is .1% on the either side to include the maximum and minimum
+		- if list of numerics: cuts the variable into bins with edges determined
+		  by the sorted numerics in the list; any values not covered by the
+		  specified will be labeled as missing
+	labels (list of str): optional list of labels for the bins; must be the same
+		length as the number of bins specified
+
+	Return: pandas series
+	'''
+	if type(bins) is int:
+		min_val = min(series)
+		max_val = max(series)
+		range_size = max_val - min_val
+		min_val = min_val - range_size * 0.001
+		max_val = max_val + range_size * 0.001
+		bins = np.linspace(min_val, max_val, num=bins + 1)
+
+	cut = pd.Series(index=series.index)
+	if labels:
+		assert len(labels) == len(bins) - 1, ('You must specify the same ' +
+											  'number of labels and bins.')
+	
+	for i in range(len(bins) - 1):
+		lb = bins[i]
+		ub = bins[i + 1]
+		if labels:
+			cut[(lb <= series)& (series < ub)] = labels[i]
+		else:
+			cut[(lb <= series)& (series < ub)] = "[{0:.3f} to {1:.3f})".format(lb, ub)
+
+	return cut
+
+
+
