@@ -233,6 +233,8 @@ def cut_variable(series, bins, labels=None):
 		length as the number of bins specified
 
 	Return: pandas series
+
+	Possibly replace with pd.cut()
 	'''
 	if type(bins) is int:
 		min_val = min(series)
@@ -251,11 +253,33 @@ def cut_variable(series, bins, labels=None):
 		lb = bins[i]
 		ub = bins[i + 1]
 		if labels:
-			cut[(lb <= series)& (series < ub)] = labels[i]
+			cut[(lb <= series) & (series < ub)] = labels[i]
 		else:
-			cut[(lb <= series)& (series < ub)] = "[{0:.3f} to {1:.3f})".format(lb, ub)
+			cut[(lb <= series) & (series < ub)] = "[{0:.3f} to {1:.3f})".format(lb, ub)
 
 	return cut
 
+def create_dummy(series, prefix=None):
+	'''
+	Transforms a variable into a set of dummy variables.
 
+	Inputs:
+	series (pandas series): the variable to transform into a set of dummies
+	prefix (str): optional string to add before the name of created dummies;
+		default is the title of the series
 
+	Returns: pandas dataframe
+
+	Possibly replace with pd.get_dummies
+	'''
+	if not prefix:
+		prefix = series.name
+
+	dummies = pd.DataFrame(index=series.index)
+	values = list(series.value_counts().index)
+	for value in values:
+		dummy_name = '{}_{}'.format(prefix, value)
+		dummies[dummy_name] = series == value
+		dummies[series.isnull()] = None
+
+	return dummies
