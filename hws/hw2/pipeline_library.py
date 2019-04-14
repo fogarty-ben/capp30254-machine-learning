@@ -64,7 +64,7 @@ def show_distribution(df, variable):
 		val_counts = df[variable].value_counts()
 		sns.barplot(x=val_counts.index, y=val_counts.values, ax=ax)
 		ax.set_ylabel('Count')
-		
+
 	f.suptitle('Distribution of {}'.format(variable))
 	f.subplots_adjust(hspace=.5, wspace=.5)
 
@@ -82,7 +82,7 @@ def pw_correlate(df, variables=None, visualize=False):
 		(including booleans) column in the dataframe; default is all numberic
 		type variables in the dataframe
 	visualize (bool): optional parameter, if enabled the function generates
-		a heat map to help draw attention to larger correlation coefficients 
+		a heat map to help draw attention to larger correlation coefficients
 
 	Returns: pandas dataframe
 
@@ -90,18 +90,18 @@ def pw_correlate(df, variables=None, visualize=False):
                                https://stackoverflow.com/questions/11244514/
 	'''
 	if not variables:
-		variables = [col for col in df.columns 
+		variables = [col for col in df.columns
 					     if pd.api.types.is_numeric_dtype(df[col])]
 
 	corr_table = np.corrcoef(df[variables].dropna(), rowvar=False)
 	corr_table = pd.DataFrame(corr_table, index=variables, columns=variables)
-	
+
 	if visualize:
 		sns.set()
 		f, ax = plt.subplots(figsize=(8, 6))
 		sns.heatmap(corr_table, annot=True, fmt='.2f', linewidths=0.5, vmin=0,
 					vmax=1, square=True, cmap='coolwarm', ax=ax)
-		
+
 		labels = ['-\n'.join(wrap(l.get_text(), 15)) for l in ax.get_yticklabels()]
 		ax.set_yticklabels(labels)
 		labels = ['-\n'.join(wrap(l.get_text(), 15)) for l in ax.get_xticklabels()]
@@ -134,8 +134,8 @@ def aggregate_by_groups(df, grouping_vars, agg_cols=None, agg_funcs=[np.mean]):
 	Returns: pandas dataframe
 	'''
 	if not agg_cols:
-		agg_cols = [col for col in df.columns 
-						if (pd.api.types.is_numeric_dtype(df[col]) and 
+		agg_cols = [col for col in df.columns
+						if (pd.api.types.is_numeric_dtype(df[col]) and
 							col not in grouping_vars)]
 
 	return df.groupby(grouping_vars)\
@@ -161,10 +161,10 @@ def find_oulier_univariate(series, visualize=False):
 
 def find_outliers(df, excluded=None):
 	'''
-	Identifies outliers for each numeric column in a dataframe, and returns a 
+	Identifies outliers for each numeric column in a dataframe, and returns a
 	data matching each record with the columns for which it is an outlier
 	and the number and percent of numeric columns for which a is an outlier.
-	Outlier is defined as any value thats fall more than 1.5 * IQR below the 
+	Outlier is defined as any value thats fall more than 1.5 * IQR below the
 	first quartile or 1.5 * IQR above the third quartile of all the values in a
 	column.
 
@@ -184,7 +184,7 @@ def find_outliers(df, excluded=None):
 				 .drop(excluded, axis=1, errors='ignore')\
 				 .apply(find_oulier_univariate, axis=0)
 	outliers['Count Outlier'] = outliers.sum(axis=1, numeric_only=True)
-	outliers['% Outlier'] = (outliers['Count Outlier'] / 
+	outliers['% Outlier'] = (outliers['Count Outlier'] /
 							 (len(outliers.columns) - 1) * 100)
 
 	return outliers
@@ -249,7 +249,7 @@ def cut_variable(series, bins, labels=None):
 	if labels:
 		assert len(labels) == len(bins) - 1, ('You must specify the same ' +
 											  'number of labels and bins.')
-	
+
 	for i in range(len(bins) - 1):
 		lb = bins[i]
 		ub = bins[i + 1]
@@ -271,7 +271,8 @@ def create_dummies(series, prefix=None):
 
 	Returns: pandas dataframe
 
-	Possibly replace with pd.get_dummies
+	- Possibly replace with pd.get_dummies?
+	- One hot encode here?
 	'''
 	if not prefix:
 		prefix = series.name
@@ -293,8 +294,8 @@ def generate_decision_tree():
 	Inputs:
 	(TBA)
 	'''
-	#One hot encoding here
+	#One hot encoding here?
 
-	#Create decision tree here
+	#Create decision tree here?
 
 	pass
