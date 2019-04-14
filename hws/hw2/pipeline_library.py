@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 from textwrap import wrap
+from sklearn import tree
 
 def read_csv(filepath, cols=None, col_types=None):
 	'''
@@ -259,7 +260,7 @@ def cut_variable(series, bins, labels=None):
 
 	return cut
 
-def create_dummy(series, prefix=None):
+def create_dummies(series, prefix=None):
 	'''
 	Transforms a variable into a set of dummy variables.
 
@@ -283,3 +284,17 @@ def create_dummy(series, prefix=None):
 		dummies[series.isnull()] = None
 
 	return dummies
+
+def generate_decision_tree():
+	'''
+	Generates a decision tree to predict a target attribute (target) based on
+	other attributes (features)
+
+	Inputs:
+	(TBA)
+	'''
+	#One hot encoding here
+
+	#Create decision tree here
+
+	pass
