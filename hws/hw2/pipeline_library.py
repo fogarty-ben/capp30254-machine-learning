@@ -137,6 +137,8 @@ def summarize_data(df, grouping_vars=None, agg_cols=None,
         with; default is mean, variance, and median
 
     Returns: pandas dataframe
+
+    To-do: fix agg_funcs initialization
     '''
     if not agg_cols:
         agg_cols = [col for col in df.columns
