@@ -6,6 +6,7 @@ Ben Fogarty
 18 April 2018
 '''
 
+import graphviz
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -286,16 +287,84 @@ def create_dummies(series, prefix=None):
 
 	return dummies
 
-def generate_decision_tree():
+def generate_decision_tree(features, target, dt=None):
 	'''
 	Generates a decision tree to predict a target attribute (target) based on
-	other attributes (features)
+	other attributes (features).
 
 	Inputs:
-	(TBA)
+	features (pandas dataframe): the features to build the decision tree with;
+		all columns must be numeric (either the data within them should be
+		numeric or it should be converted from categorical data to dummies)
+	target (pandas series): the target the decision tree is designed to predict;
+		should be categorical data
+	dt (sklearn.tree.DecisionTree): optional DecisionTreeClassifier object so
+		the parameters of the DecisionTreeClassifier can be specified; if
+		unspecified, a new DecisionTreeClassifier object will be instantiated
+		with all the default arguments, except the function to measure the
+		quality of a split ('entropy' will be specified instead of the default,
+		'gini')
+
+	Returns: sklearn.tree.DecisionTreeClassifier, the trained 
+		DecisionTreeClassifier 
+
+	Citations:
+	DecisionTreeClassifier docs: https://scikit-learn.org/stable/modules/
+		generated/sklearn.tree.DecisionTreeClassifier.html#
+		sklearn.tree.DecisionTreeClassifier
 	'''
-	#One hot encoding here?
+	if not dt:
+		dt = tree.DecisionTreeClassifier(criterion='entropy')
 
-	#Create decision tree here?
+	return dt.fit(features, target)
 
-	pass
+def score_decision_tree(test_features, test_target, dt):
+	'''
+	Returns the mean accuracy of the decision tree's predictions on a set of
+	test data.
+
+	Inputs:
+	test_features (pandas dataframe): the feature values for the observations
+		the decision tree is being tested against; all columns must be numeric
+		(either the data within them should be numeric or it should be converted
+		from categorical data to dummies)
+	target (pandas series): the target attribute values for the observations the
+		the decision tree is being tested against; should be categorical data
+	dt (sklearn.tree.DecisionTreeClassifier): a trained decision tree classifier
+		model
+
+	Returns: float
+
+	Citations:
+	DecisionTreeClassifier docs: https://scikit-learn.org/stable/modules/
+		generated/sklearn.tree.DecisionTreeClassifier.html#
+		sklearn.tree.DecisionTreeClassifier
+	'''
+	return dt.score(test_features, test_target)
+
+def visualize_decision_tree(dt, feature_names, class_names, filepath='pdf'):
+	'''
+	Saves and pens a PDF visualizing the specified decision tree.
+
+	Inputs:
+	dt (sklearn.tree.DecisionTreeClassifier): a trained decision tree classifier
+	feature_names (list of strs): a list of the features the data was trained
+		with; must be in the same order as the features in the dataset
+	class_names (list of strs): a list of the classes of the target attribute
+		the model is predicting; must be in the same order as the features in
+		the dataset
+	filepath (str): optitional parameter specifying the output path for the
+		visualization (do not include the file extension); default is 'tree' in
+		the present working directory
+	
+	Citations:
+	Guide to sklearn decision trees: https://scikit-learn.org/stable/modules/
+		tree.html
+	sklearn.tree.export_graphviz docs: https://scikit-learn.org/stable/modules/
+		generated/sklearn.tree.export_graphviz.htm
+	'''
+	class_names.sort()
+	dot_data = tree.export_graphviz(dt, None, feature_names=feature_names, 
+								  class_names=class_names, filled=True)
+	graph = graphviz.Source(dot_data)
+	output_path = graph.render(filename=filepath, view=True)
