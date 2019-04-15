@@ -57,8 +57,7 @@ def show_distribution(df, variable):
     if pd.api.types.is_numeric_dtype(df[variable]):
         f, (ax1, ax2) = plt.subplots(2, 1)
         sns.distplot(df[variable], kde=False, ax=ax1)
-        sns.distplot(df[variable], hist=False, kde_kws={'shade': True},
-                     rug=True, ax=ax2)
+        sns.boxplot(x=variable, data=df, ax=ax2, orient='h')
         ax1.set_title('Histogram')
         ax1.set_ylabel('Count')
         ax2.set_title('Estimated density') #change to box plot
