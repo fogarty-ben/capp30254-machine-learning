@@ -47,6 +47,8 @@ def show_distribution(df, variable):
 		of a column in the dataframe
 
 	Returns: matplotlib figure
+	
+	Replace density with box and whisker?
 
 	Citations:
 	Locating is_numeric_dtype: https://stackoverflow.com/questions/19900202/
@@ -216,6 +218,9 @@ def preprocess_data(df):
 	df (pandas dataframe): contains the data to preprocess
 
 	Returns: pandas dataframe
+
+	To-do: mention why preprocessing should be done prior to any variable
+		transforms
 	'''
 	return df.apply(replace_missing, axis=0)
 
@@ -236,7 +241,7 @@ def cut_variable(series, bins, labels=None):
 
 	Return: pandas series
 
-	Possibly replace with pd.cut()
+	Possibly replace with pd.cut()?
 	'''
 	if type(bins) is int:
 		min_val = min(series)
@@ -273,6 +278,9 @@ def create_dummies(df, columns=None):
 
 	Returns: pandas dataframe where columns to be converted are replaced with
 		columns contatining dummy variables
+
+	Revert to bespoke to hadle NaNs? If so rewrite bespoke to meet this
+	specification?
 	'''
 	return pd.get_dummies(df, columns=columns)
 
