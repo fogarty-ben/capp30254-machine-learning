@@ -4,6 +4,8 @@ Simple Machine Learning Pipeline
 Ben Fogarty
 
 18 April 2018
+
+#Add Da
 '''
 
 import graphviz
@@ -118,7 +120,8 @@ def pw_correlate(df, variables=None, visualize=False):
 
 	return corr_table
 
-def aggregate_by_groups(df, grouping_vars, agg_cols=None, agg_funcs=[np.mean]):
+def summarize_data(df, grouping_vars=None, agg_cols=None, 
+				   agg_funcs=[np.mean, np.var, np.median]):
 	'''
 	Groups rows based on the set of grouping variables and report summary
 	statistics over the other numeric variables.
@@ -126,13 +129,14 @@ def aggregate_by_groups(df, grouping_vars, agg_cols=None, agg_funcs=[np.mean]):
 	Inputs:
 	df (pandas dataframe): dataframe containing the variables to calculate
 		pairwise correlation between
-	grouping_vars (str or list of strs): the variable or list of variables to
-		group on; each passed str must be name of a column in the dataframe
+	grouping_vars (str or list of strs): optional variable or list of variables
+		to group on before aggregating; each passed str must be name of a column
+		in the dataframe; if not included, no grouping is performed
 	agg_cols (str or list of strs): the variable or list of variables to
 		aggregate after grouping; each passed str must be name of a column in
 		the dataframe; default is all numeric type variables in the dataframe
 	agg_funcs (list of functions): optional list of fuctions to aggregate
-		with; default is mean
+		with; default is mean, variance, and median
 
 	Returns: pandas dataframe
 	'''
@@ -140,10 +144,15 @@ def aggregate_by_groups(df, grouping_vars, agg_cols=None, agg_funcs=[np.mean]):
 		agg_cols = [col for col in df.columns
 						if (pd.api.types.is_numeric_dtype(df[col]) and
 							col not in grouping_vars)]
+	if grouping_vars:
+		summary = df.groupby(grouping_vars)\
+				    [agg_cols]\
+		            .agg(agg_funcs)
+	else:
+		summary = df[agg_cols]\
+		            .agg(agg_funcs)
 
-	return df.groupby(grouping_vars)\
-			  [agg_cols]\
-	         .agg(agg_funcs)
+	return summary
 
 def find_oulier_univariate(series, visualize=False):
 	'''
