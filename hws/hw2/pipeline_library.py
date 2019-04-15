@@ -4,8 +4,6 @@ Simple Machine Learning Pipeline
 Ben Fogarty
 
 18 April 2018
-
-#Add Da
 '''
 
 import graphviz
