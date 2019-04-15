@@ -261,31 +261,20 @@ def cut_variable(series, bins, labels=None):
 
 	return cut
 
-def create_dummies(series, prefix=None):
+def create_dummies(df, columns=None):
 	'''
 	Transforms a variable into a set of dummy variables.
 
 	Inputs:
-	series (pandas series): the variable to transform into a set of dummies
-	prefix (str): optional string to add before the name of created dummies;
-		default is the title of the series
+	series (pandas dataframe/series): the data to transform dummies in
+	columns (list of strs): optional list of column names containing categorical
+		variables to convert to dummy variables; if not specified then any
+		colums with dtype object or category are converted
 
-	Returns: pandas dataframe
-
-	- Possibly replace with pd.get_dummies?
-	- One hot encode here?
+	Returns: pandas dataframe where columns to be converted are replaced with
+		columns contatining dummy variables
 	'''
-	if not prefix:
-		prefix = series.name
-
-	dummies = pd.DataFrame(index=series.index)
-	values = list(series.value_counts().index)
-	for value in values:
-		dummy_name = '{}_{}'.format(prefix, value)
-		dummies[dummy_name] = series == value
-		dummies[series.isnull()] = None
-
-	return dummies
+	return pd.get_dummies(df, columns=columns)
 
 def generate_decision_tree(features, target, dt=None):
 	'''
