@@ -37,7 +37,7 @@ def read_csv(filepath, cols=None, col_types=None):
 
 def show_distribution(df, variable):
     '''
-    Graphs a histogram and the approximate distribtion of one variable in a
+    Graphs a histogram and the box plot of one variable in a
     dataframe.
 
     Inputs:
@@ -48,8 +48,6 @@ def show_distribution(df, variable):
 
     Returns: matplotlib figure
     
-    Replace density with box and whisker?
-
     Citations:
     Locating is_numeric_dtype: https://stackoverflow.com/questions/19900202/
     '''
@@ -117,8 +115,7 @@ def pw_correlate(df, variables=None, visualize=False):
 
     return corr_table
 
-def summarize_data(df, grouping_vars=None, agg_cols=None, 
-                   agg_funcs=[np.mean, np.var, np.median]):
+def summarize_data(df, grouping_vars=None, agg_cols=None, agg_funcs=None):
     '''
     Groups rows based on the set of grouping variables and report summary
     statistics over the other numeric variables.
@@ -136,8 +133,6 @@ def summarize_data(df, grouping_vars=None, agg_cols=None,
         with; default is mean, variance, and median
 
     Returns: pandas dataframe
-
-    To-do: fix agg_funcs initialization
     '''
     if not grouping_vars:
         grouping_vars = []
@@ -231,9 +226,6 @@ def preprocess_data(df):
     df (pandas dataframe): contains the data to preprocess
 
     Returns: pandas dataframe
-
-    To-do: mention why preprocessing should be done prior to any variable
-        transforms
     '''
     return df.apply(replace_missing, axis=0)
 
@@ -244,8 +236,9 @@ def cut_variable(series, bins, labels=None):
     Inputs:
     series (pandas series): the variable to discretize
     bins (int or list of numerics): the binning rule:
-        - if int: cuts the variable into n equally sized bins; the range of the
-          variable is .1% on the either side to include the maximum and minimum
+        - if int: cuts the variable into n  approximately eqipercentile sized 
+          bins; the range of the variable is .1% on the right side to include
+          the maximum valuse
         - if list of numerics: cuts the variable into bins with edges determined
           by the sorted numerics in the list; any values not covered by the
           specified will be labeled as missing
@@ -253,21 +246,21 @@ def cut_variable(series, bins, labels=None):
         length as the number of bins specified
 
     Return: pandas series
-
-    Possibly replace with pd.cut()?
     '''
     if type(bins) is int:
         min_val = min(series)
         max_val = max(series)
         range_size = max_val - min_val
-        min_val = min_val - range_size * 0.001
         max_val = max_val + range_size * 0.001
-        bins = np.linspace(min_val, max_val, num=bins + 1)
+        precentiles = np.linspace(0, 1, num=(bins + 1))
+
+        bins = np.percentile(series, percentiles).tolist()
+        bins[-1] = max_val
 
     cut = pd.Series(index=series.index)
     if labels:
-        assert len(labels) == len(bins) - 1, ('You must specify the same ' +
-                                              'number of labels and bins.')
+        assert len(labels) == (len(bins) - 1), ('You must specify the same ' +
+                                                'number of labels and bins.')
 
     for i in range(len(bins) - 1):
         lb = bins[i]
@@ -357,9 +350,9 @@ def score_decision_tree(dt, test_features, test_target):
     '''
     return dt.score(test_features, test_target)
 
-def visualize_decision_tree(dt, feature_names, class_names, filepath='pdf'):
+def visualize_decision_tree(dt, feature_names, class_names, filepath='tree'):
     '''
-    Saves and pens a PDF visualizing the specified decision tree.
+    Saves and opens a PDF visualizing the specified decision tree.
 
     Inputs:
     dt (sklearn.tree.DecisionTreeClassifier): a trained decision tree classifier
