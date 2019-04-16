@@ -187,7 +187,7 @@ def find_outliers(df, excluded=None):
     Inputs:
     df (pandas dataframe): the dataframe to find outliers in
     excluded (str list of strs): the name or a list of names of columns not to
-        look for outliers in
+        look for outliers in; default is including all numeric columns
 
     Returns: pandas series
     '''
@@ -279,23 +279,28 @@ def cut_variable(series, bins, labels=None):
 
     return cut
 
-def create_dummies(df, columns=None):
+def create_dummies(df, column):
     '''
     Transforms a variable into a set of dummy variables.
 
     Inputs:
     series (pandas dataframe/series): the data to transform dummies in
-    columns (list of strs): optional list of column names containing categorical
+    column (list of strs): column name containing categorical
         variables to convert to dummy variables; if not specified then any
         colums with dtype object or category are converted
 
     Returns: pandas dataframe where columns to be converted are replaced with
         columns contatining dummy variables
-
-    Revert to bespoke to hadle NaNs? If so rewrite bespoke to meet this
-    specification?
     '''
-    return pd.get_dummies(df, columns=columns)
+    col = df[column]
+    values = list(col.value_counts().index)
+    output = df.drop(column, axis=1)
+    for value in values:
+        dummy_name = '{}_{}'.format(column, value)
+        output[dummy_name] = (col == value)
+        output.loc[col.isnull(), dummy_name] = float('nan')
+
+    return output
 
 def generate_decision_tree(features, target, dt=None):
     '''
@@ -328,20 +333,20 @@ def generate_decision_tree(features, target, dt=None):
 
     return dt.fit(features, target)
 
-def score_decision_tree(test_features, test_target, dt):
+def score_decision_tree(dt, test_features, test_target):
     '''
     Returns the mean accuracy of the decision tree's predictions on a set of
     test data.
 
     Inputs:
+    dt (sklearn.tree.DecisionTreeClassifier): a trained decision tree classifier
+        model
     test_features (pandas dataframe): the feature values for the observations
         the decision tree is being tested against; all columns must be numeric
         (either the data within them should be numeric or it should be converted
         from categorical data to dummies)
     target (pandas series): the target attribute values for the observations the
         the decision tree is being tested against; should be categorical data
-    dt (sklearn.tree.DecisionTreeClassifier): a trained decision tree classifier
-        model
 
     Returns: float
 
