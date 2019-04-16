@@ -60,7 +60,7 @@ def show_distribution(df, variable):
         sns.boxplot(x=variable, data=df, ax=ax2, orient='h')
         ax1.set_title('Histogram')
         ax1.set_ylabel('Count')
-        ax2.set_title('Estimated density') #change to box plot
+        ax2.set_title('Box plot')
     else:
         f, ax = plt.subplots(1, 1)
         val_counts = df[variable].value_counts()
