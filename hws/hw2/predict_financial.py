@@ -35,11 +35,10 @@ def go(filepath):
     dt, accuracy = build_eval_model(df)
     print('Accuracy: {}'.format(accuracy))
 
-    print(df.columns)
     feature_names = list(df.columns)
-    print(feature_names)
     feature_names.remove('PersonID')
     feature_names.remove('SeriousDlqin2yrs')
+    
     pl.visualize_decision_tree(dt, feature_names, class_names=['0', '1'])
 
 def explore_data(df):
