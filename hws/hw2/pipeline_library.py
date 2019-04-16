@@ -139,10 +139,15 @@ def summarize_data(df, grouping_vars=None, agg_cols=None,
 
     To-do: fix agg_funcs initialization
     '''
+    if not grouping_vars:
+        grouping_vars = []
     if not agg_cols:
         agg_cols = [col for col in df.columns
                         if (pd.api.types.is_numeric_dtype(df[col]) and
                             col not in grouping_vars)]
+    if not agg_funcs:
+        agg_funcs = [np.mean, np.var, lambda x: np.percentile(x, [.25, .5, .75])]
+    
     if grouping_vars:
         summary = df.groupby(grouping_vars)\
                     [agg_cols]\
@@ -151,7 +156,7 @@ def summarize_data(df, grouping_vars=None, agg_cols=None,
         summary = df[agg_cols]\
                     .agg(agg_funcs)
 
-    return summary
+    return summary.transpose()
 
 def find_oulier_univariate(series, visualize=False):
     '''
