@@ -28,7 +28,7 @@ def go(filepath):
                  'NumberRealEstateLoansOrLines': float,
                  'NumberOfTime60-89DaysPastDueNotWorse': float,
                  'NumberOfDependents': float}
-    df = pl.read_csv(filepath, col_types=col_types)
+    df = pl.read_csv(filepath, col_types=col_types, index_col='PersonID')
     df = pl.preprocess_data(df)
     explore_data(df)
     df = process_data(df)

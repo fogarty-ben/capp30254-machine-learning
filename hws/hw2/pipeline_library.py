@@ -14,7 +14,7 @@ import seaborn as sns
 from textwrap import wrap
 from sklearn import tree
 
-def read_csv(filepath, cols=None, col_types=None):
+def read_csv(filepath, cols=None, col_types=None, index_col=None):
     '''
     Imports a CSV file into a pandas data frame, optionally specifying columns
     to import and the types of the columns.
@@ -30,21 +30,20 @@ def read_csv(filepath, cols=None, col_types=None):
         in the dataset and the associate value must be a pandas datatype (valid
         types listed here: http://pandas.pydata.org/pandas-docs/stable/
         getting_started/basics.html#dtypes)
+    index_col (str): optional name of column providing an index for the data
 
     Returns: pandas dataframe
     '''
-    return pd.read_csv(filepath, usecols=cols, dtype=col_types)
+    return pd.read_csv(filepath, usecols=cols, dtype=col_types, index_col=index_col)
 
-def show_distribution(df, variable):
+def show_distribution(series):
     '''
     Graphs a histogram and the box plot of one variable in a
     dataframe.
 
     Inputs:
-    df (pandas dataframe): dataframe containing the variable to show the
+    df (pandas series): the variable to show the
         distribution of as a column
-    variable (str): the variable to show the distribution of; must be the name
-        of a column in the dataframe
 
     Returns: matplotlib figure
     
@@ -52,20 +51,21 @@ def show_distribution(df, variable):
     Locating is_numeric_dtype: https://stackoverflow.com/questions/19900202/
     '''
     sns.set()
-    if pd.api.types.is_numeric_dtype(df[variable]):
-        f, (ax1, ax2) = plt.subplots(2, 1)
-        sns.distplot(df[variable], kde=False, ax=ax1)
-        sns.boxplot(x=variable, data=df, ax=ax2, orient='h')
+    if pd.api.types.is_numeric_dtype(series):
+        f, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
+        sns.distplot(series, kde=False, ax=ax1)
+        sns.boxplot(x=series, ax=ax2, orient='h')
         ax1.set_title('Histogram')
         ax1.set_ylabel('Count')
+        ax1.set_xlabel('')
         ax2.set_title('Box plot')
     else:
         f, ax = plt.subplots(1, 1)
-        val_counts = df[variable].value_counts()
+        val_counts = series.value_counts()
         sns.barplot(x=val_counts.index, y=val_counts.values, ax=ax)
         ax.set_ylabel('Count')
 
-    f.suptitle('Distribution of {}'.format(variable))
+    f.suptitle('Distribution of {}'.format(series.name))
     f.subplots_adjust(hspace=.5, wspace=.5)
 
     return f
@@ -99,23 +99,24 @@ def pw_correlate(df, variables=None, visualize=False):
     if visualize:
         sns.set()
         f, ax = plt.subplots(figsize=(8, 6))
-        sns.heatmap(corr_table, annot=True, fmt='.2f', linewidths=0.5, vmin=0,
-                    vmax=1, square=True, cmap='coolwarm', ax=ax)
+        sns.heatmap(corr_table, annot=True, annot_kws={"size": 'small'}, 
+                    fmt='.2f', linewidths=0.5, vmin=-1, vmax=1, square=True,
+                    cmap='coolwarm', ax=ax)
 
-        labels = ['-\n'.join(wrap(l.get_text(), 15)) for l in ax.get_yticklabels()]
+        labels = ['-\n'.join(wrap(l.get_text(), 16)) for l in ax.get_yticklabels()]
         ax.set_yticklabels(labels)
-        labels = ['-\n'.join(wrap(l.get_text(), 15)) for l in ax.get_xticklabels()]
+        labels = ['-\n'.join(wrap(l.get_text(), 16)) for l in ax.get_xticklabels()]
         ax.set_xticklabels(labels)
         ax.tick_params(axis='both', rotation=0, labelsize='small')
         ax.tick_params(axis='x', rotation=90, labelsize='small')
 
-        f.suptitle('Correlation Table')
+        ax.set_title('Correlation Table')
         f.tight_layout()
         f.show()
 
     return corr_table
 
-def summarize_data(df, grouping_vars=None, agg_cols=None, agg_funcs=None):
+def summarize_data(df, grouping_vars=None, agg_cols=None):
     '''
     Groups rows based on the set of grouping variables and report summary
     statistics over the other numeric variables.
@@ -129,27 +130,17 @@ def summarize_data(df, grouping_vars=None, agg_cols=None, agg_funcs=None):
     agg_cols (str or list of strs): the variable or list of variables to
         aggregate after grouping; each passed str must be name of a column in
         the dataframe; default is all numeric type variables in the dataframe
-    agg_funcs (list of functions): optional list of fuctions to aggregate
-        with; default is mean, variance, and median
 
     Returns: pandas dataframe
     '''
-    if not grouping_vars:
-        grouping_vars = []
-    if not agg_cols:
-        agg_cols = [col for col in df.columns
-                        if (pd.api.types.is_numeric_dtype(df[col]) and
-                            col not in grouping_vars)]
-    if not agg_funcs:
-        agg_funcs = [np.mean, np.var, lambda x: np.percentile(x, [.25, .5, .75])]
+    if agg_cols:
+        df = df[agg_cols]
     
     if grouping_vars:
         summary = df.groupby(grouping_vars)\
-                    [agg_cols]\
-                    .agg(agg_funcs)
+                    .describe()
     else:
-        summary = df[agg_cols]\
-                    .agg(agg_funcs)
+        summary = df.describe()
 
     return summary.transpose()
 
@@ -163,10 +154,10 @@ def find_oulier_univariate(series, visualize=False):
 
     Returns: pandas series
     '''
-    quartiles = np.percentile(series.dropna(), [0.25, 0.75])
+    quartiles = np.quantile(series.dropna(), [0.25, 0.75])
     iqr = quartiles[1] - quartiles[0]
-    lower_bound = quartiles[0] - iqr
-    upper_bound = quartiles[1] + iqr
+    lower_bound = quartiles[0] - 1.5 * iqr
+    upper_bound = quartiles[1] + 1.5 * iqr
 
     return (lower_bound > series) | (upper_bound < series)
 
@@ -248,29 +239,9 @@ def cut_variable(series, bins, labels=None):
     Return: pandas series
     '''
     if type(bins) is int:
-        min_val = min(series)
-        max_val = max(series)
-        range_size = max_val - min_val
-        max_val = max_val + range_size * 0.001
-        precentiles = np.linspace(0, 1, num=(bins + 1))
+        return pd.qcut(series, bins, labels=labels).astype(str)
 
-        bins = np.percentile(series, percentiles).tolist()
-        bins[-1] = max_val
-
-    cut = pd.Series(index=series.index)
-    if labels:
-        assert len(labels) == (len(bins) - 1), ('You must specify the same ' +
-                                                'number of labels and bins.')
-
-    for i in range(len(bins) - 1):
-        lb = bins[i]
-        ub = bins[i + 1]
-        if labels:
-            cut[(lb <= series) & (series < ub)] = labels[i]
-        else:
-            cut[(lb <= series) & (series < ub)] = "[{0:.3f} to {1:.3f})".format(lb, ub)
-
-    return cut
+    return pd.cut(series, bins, labels=labels)
 
 def create_dummies(df, column):
     '''
