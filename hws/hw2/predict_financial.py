@@ -9,6 +9,7 @@ Ben Fogarty
 import pandas as pd
 import pipeline_library as pl
 from sklearn import tree
+import sys
 
 def go(filepath):
     '''
@@ -124,4 +125,6 @@ def build_eval_model(df, target_col):
 
 
 if __name__ == '__main__':
-    go()
+    usage = "python3 analyze.py <dataset> <parameters>"
+    filepath = sys.argv[1]
+    go(filepath)
