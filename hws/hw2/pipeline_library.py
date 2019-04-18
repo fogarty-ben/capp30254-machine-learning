@@ -6,13 +6,13 @@ Ben Fogarty
 18 April 2018
 '''
 
+from textwrap import wrap
+from sklearn import tree
 import graphviz
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
-from textwrap import wrap
-from sklearn import tree
 
 def read_csv(filepath, cols=None, col_types=None, index_col=None):
     '''
@@ -33,7 +33,7 @@ def read_csv(filepath, cols=None, col_types=None, index_col=None):
 
     Returns: pandas dataframe
     '''
-    return pd.read_csv(filepath, usecols=cols, dtype=col_types, 
+    return pd.read_csv(filepath, usecols=cols, dtype=col_types,
                        index_col=index_col)
 
 def show_distribution(series):
@@ -45,7 +45,7 @@ def show_distribution(series):
     df (pandas series): the variable to show the distribution of
 
     Returns: matplotlib figure
-    
+
     Citations:
     Locating is_numeric_dtype: https://stackoverflow.com/questions/19900202/
     '''
@@ -98,7 +98,7 @@ def pw_correlate(df, variables=None, visualize=False):
     if visualize:
         sns.set()
         f, ax = plt.subplots(figsize=(8, 6))
-        sns.heatmap(corr_table, annot=True, annot_kws={"size": 'small'}, 
+        sns.heatmap(corr_table, annot=True, annot_kws={"size": 'small'},
                     fmt='.2f', linewidths=0.5, vmin=-1, vmax=1, square=True,
                     cmap='coolwarm', ax=ax)
 
@@ -134,7 +134,7 @@ def summarize_data(df, grouping_vars=None, agg_cols=None):
     '''
     if agg_cols:
         df = df[agg_cols]
-    
+
     if grouping_vars:
         summary = df.groupby(grouping_vars)\
                     .describe()
@@ -238,7 +238,7 @@ def cut_variable(series, bins, labels=None):
 
     Return: pandas series
     '''
-    if type(bins) is int:
+    if isinstance(bins, int):
         return pd.qcut(series, bins, labels=labels, duplicates='drop')\
                  .astype('category')
 
@@ -274,7 +274,7 @@ def generate_decision_tree(features, target, dt=None):
     other attributes (features).
 
     Inputs:
-    features (pandas dataframe): data for features to build the decision tree 
+    features (pandas dataframe): data for features to build the decision tree
         with; all columns must be numeric in type
     target (pandas series): data for target attribute the decision tree is
         designed to predict; should be categorical data with a numerial form
@@ -283,8 +283,8 @@ def generate_decision_tree(features, target, dt=None):
         unspecified, a new DecisionTreeClassifier object will be instantiated
         with all the default arguments
 
-    Returns: sklearn.tree.DecisionTreeClassifier, the trained 
-        DecisionTreeClassifier 
+    Returns: sklearn.tree.DecisionTreeClassifier, the trained
+        DecisionTreeClassifier
 
     Citations:
     DecisionTreeClassifier docs: https://scikit-learn.org/stable/modules/
@@ -308,7 +308,7 @@ def score_decision_tree(dt, test_features, test_target):
         decision tree; structure of the data (columns and column types) must
         match the data used to train the decision tree
     target (pandas series): testing data for the target attribute a decision
-        tree is predicting; structure of the data (columns and column types) 
+        tree is predicting; structure of the data (columns and column types)
         must match the data used to train the decision tree
 
     Returns: float
@@ -334,14 +334,14 @@ def visualize_decision_tree(dt, feature_names, class_names, filepath='tree'):
     filepath (str): optitional parameter specifying the output path for the
         visualization (do not include the file extension); default is 'tree' in
         the present working directory
-    
+
     Citations:
     Guide to sklearn decision trees: https://scikit-learn.org/stable/modules/
         tree.html
     sklearn.tree.export_graphviz docs: https://scikit-learn.org/stable/modules/
         generated/sklearn.tree.export_graphviz.htm
     '''
-    dot_data = tree.export_graphviz(dt, None, feature_names=feature_names, 
+    dot_data = tree.export_graphviz(dt, None, feature_names=feature_names,
                                     class_names=class_names, filled=True)
     graph = graphviz.Source(dot_data)
     output_path = graph.render(filename=filepath, view=True)

@@ -6,14 +6,14 @@ Ben Fogarty
 18 April 2018
 '''
 
-import pandas as pd
-import pipeline_library as pl
-from sklearn import tree
 import sys
+from sklearn import tree
+import pipeline_library as pl
 
-def go(filepath):
+def go(file):
     '''
-    <update>
+    Applies the pipeline library to predicting serioius financial distress
+    within the next two years.
 
     Inputs:
     filepath (str): path to the file containing the training data
@@ -30,16 +30,16 @@ def go(filepath):
                  'NumberRealEstateLoansOrLines': float,
                  'NumberOfTime60-89DaysPastDueNotWorse': float,
                  'NumberOfDependents': float}
-    df = pl.read_csv('credit-data.csv', col_types=col_types, index_col='PersonID')
+    df = pl.read_csv(file, col_types=col_types, index_col='PersonID')
     explore_data(df)
-    
+
     df = pl.preprocess_data(df)
     df = generate_features(df)
-    
+
     target_col = 'SeriousDlqin2yrs'
     dt = build_eval_model(df, target_col)
     features_cols = df.drop(target_col, axis=1).columns
-    pl.visualize_decision_tree(dt, features_cols, 
+    pl.visualize_decision_tree(dt, features_cols,
                                ['No Financial Distress', 'Financial Distress'])
 
     features = df.drop(target_col, axis=1)
@@ -49,7 +49,7 @@ def go(filepath):
 
 def explore_data(df):
     '''
-    Generates distributions of variables, correlations, outliers, and other 
+    Generates distributions of variables, correlations, outliers, and other
     summaries of variables in the dataset.
 
     Inputs:
@@ -57,7 +57,7 @@ def explore_data(df):
     '''
     summary = pl.summarize_data(df)
     print(summary)
-    
+
     correlate = pl.pw_correlate(df, visualize=True)
     print(correlate)
 
@@ -78,23 +78,30 @@ def generate_features(df):
     Inputs:
     df (pandas dataframe): the dataframe
 
-    Returns: pandas dataframe, the processed dataset
+    Returns: pandas dataframe, the dataset after generating features
     '''
     df = pl.create_dummies(df, 'zipcode')
 
     df.MonthlyIncome = pl.cut_variable(df.MonthlyIncome, 20)
     df = pl.create_dummies(df, 'MonthlyIncome')
 
-    df.RevolvingUtilizationOfUnsecuredLines = pl.cut_variable(df.RevolvingUtilizationOfUnsecuredLines, 10)
+    df.RevolvingUtilizationOfUnsecuredLines = pl.cut_variable(
+        df.RevolvingUtilizationOfUnsecuredLines, 10)
     df = pl.create_dummies(df, 'RevolvingUtilizationOfUnsecuredLines')
 
-    df['NumberOfTime30-59DaysPastDueNotWorse'] = pl.cut_variable(df['NumberOfTime30-59DaysPastDueNotWorse'], [0, 1, float('inf')], labels=['Zero', 'One or more'])
+    df['NumberOfTime30-59DaysPastDueNotWorse'] = pl.cut_variable(
+        df['NumberOfTime30-59DaysPastDueNotWorse'], [0, 1, float('inf')],
+        labels=['Zero', 'One or more'])
     df = pl.create_dummies(df, 'NumberOfTime30-59DaysPastDueNotWorse')
 
-    df['NumberOfTime60-89DaysPastDueNotWorse'] = pl.cut_variable(df['NumberOfTime60-89DaysPastDueNotWorse'], [0, 1, float('inf')], labels=['Zero', 'One or more'])
+    df['NumberOfTime60-89DaysPastDueNotWorse'] = pl.cut_variable(
+        df['NumberOfTime60-89DaysPastDueNotWorse'], [0, 1, float('inf')],
+        labels=['Zero', 'One or more'])
     df = pl.create_dummies(df, 'NumberOfTime60-89DaysPastDueNotWorse')
 
-    df['NumberOfTimes90DaysLate'] = pl.cut_variable(df['NumberOfTimes90DaysLate'], [0, 1, float('inf')], labels=['Zero', 'One or more'])
+    df['NumberOfTimes90DaysLate'] = pl.cut_variable(
+        df['NumberOfTimes90DaysLate'], [0, 1, float('inf')],
+        labels=['Zero', 'One or more'])
     df = pl.create_dummies(df, 'NumberOfTimes90DaysLate')
 
     return df
@@ -103,19 +110,17 @@ def generate_features(df):
 def build_eval_model(df, target_col):
     '''
     Builds a decision tree model to predict finanical distress within the next
-    two years and assesses the model's accuracy the mean accuracy of the
-    decision tree's predictions on a set of test data.
+    two years.
 
     Inputs:
     df: the dataframe
 
-    Returns: tuple of sklearn.tree.DecisionTreeClassifier (the trained decision
-        tree) and float 
+    Returns: sklearn.tree.DecisionTreeClassifier
 
     For later implementation: splitting data into test and training sets
     '''
     dt = tree.DecisionTreeClassifier(criterion='entropy', max_depth=15)
-    
+
     features = df.drop(target_col, axis=1)
     target = df[target_col]
 
