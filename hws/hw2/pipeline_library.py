@@ -239,9 +239,9 @@ def cut_variable(series, bins, labels=None):
     Return: pandas series
     '''
     if type(bins) is int:
-        return pd.qcut(series, bins, labels=labels).astype(str)
+        return pd.qcut(series, bins, labels=labels, duplicates='drop').astype(str)
 
-    return pd.cut(series, bins, labels=labels)
+    return pd.cut(series, bins, labels=labels, include_lowest=True)
 
 def create_dummies(df, column):
     '''
@@ -342,7 +342,6 @@ def visualize_decision_tree(dt, feature_names, class_names, filepath='tree'):
     sklearn.tree.export_graphviz docs: https://scikit-learn.org/stable/modules/
         generated/sklearn.tree.export_graphviz.htm
     '''
-    class_names.sort()
     dot_data = tree.export_graphviz(dt, None, feature_names=feature_names, 
                                   class_names=class_names, filled=True)
     graph = graphviz.Source(dot_data)

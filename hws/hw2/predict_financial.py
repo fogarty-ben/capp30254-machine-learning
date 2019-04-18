@@ -8,6 +8,7 @@ Ben Fogarty
 
 import pandas as pd
 import pipeline_library as pl
+from sklearn import tree
 
 def go(filepath):
     '''
@@ -28,18 +29,22 @@ def go(filepath):
                  'NumberRealEstateLoansOrLines': float,
                  'NumberOfTime60-89DaysPastDueNotWorse': float,
                  'NumberOfDependents': float}
-    df = pl.read_csv(filepath, col_types=col_types, index_col='PersonID')
-    df = pl.preprocess_data(df)
+    df = pl.read_csv('credit-data.csv', col_types=col_types, index_col='PersonID')
     explore_data(df)
-    df = process_data(df)
-    dt, accuracy = build_eval_model(df)
-    print('Accuracy: {}'.format(accuracy))
-
-    feature_names = list(df.columns)
-    feature_names.remove('PersonID')
-    feature_names.remove('SeriousDlqin2yrs')
     
-    pl.visualize_decision_tree(dt, feature_names, class_names=['0', '1'])
+    df = pl.preprocess_data(df)
+    df = generate_features(df)
+    
+    target_col = 'SeriousDlqin2yrs'
+    dt = build_eval_model(df, target_col)
+    features_cols = df.drop(target_col, axis=1).columns
+    pl.visualize_decision_tree(dt, features_cols, 
+                               ['No Financial Distress', 'Financial Distress'])
+
+    features = df.drop(target_col, axis=1)
+    target = df[target_col]
+    accuracy = pl.score_decision_tree(dt, features, target)
+    print('Accuracy: {}'.format(accuracy))
 
 def explore_data(df):
     '''
@@ -50,34 +55,22 @@ def explore_data(df):
     df (pandas dataframe): the dataframe
     '''
     summary = pl.summarize_data(df)
+    print(summary)
+    
+    correlate = pl.pw_correlate(df, visualize=True)
+    print(correlate)
 
-    pw_corr_vars = ['SeriousDlqin2yrs', 'RevolvingUtilizationOfUnsecuredLines',
-       'age', 'NumberOfTime30-59DaysPastDueNotWorse', 'DebtRatio',
-       'MonthlyIncome', 'NumberOfOpenCreditLinesAndLoans',
-       'NumberOfTimes90DaysLate', 'NumberRealEstateLoansOrLines',
-       'NumberOfTime60-89DaysPastDueNotWorse', 'NumberOfDependents']
-    correlations = pl.pw_correlate(df, variables=pw_corr_vars)
+    by_zip = pl.summarize_data(df, grouping_vars='zipcode')
+    print(by_zip.xs('mean', axis=0, level=1))
 
     for var in df.columns:
-        if not var == 'PersonID':
-            print(var)
-            if var in summary.index:
-                print(summary.loc[var, :])
-            pl.show_distribution(df, var).show()
-            if var in pw_corr_vars:
-                print('Correlations with {}'.format(var))
-                print(correlations[var])
-            print()
+        pl.show_distribution(df[var].dropna()).show()
 
-    print('By Zipcode Summary:')
-    print(pl.summarize_data(df, grouping_vars='zipcode'))
+    outliers = pl.find_outliers(df)
+    print(outliers['Count Outlier'].value_counts().sort_index())
+    print(outliers.drop(['Count Outlier', '% Outlier'], axis=1).sum().sort_values())
 
-    print('Outlier summary:')
-    outliers = pl.find_outliers(df, excluded=['SeriousDlqin2yrs', 'PersonID'])
-    outliers.sort_values('Count Outlier', ascending=False, inplace=True)
-    print(outliers['Count Outlier'].value_counts())
-
-def process_data(df):
+def generate_features(df):
     '''
     Generates categorical and binary features.
 
@@ -88,10 +81,25 @@ def process_data(df):
     '''
     df = pl.create_dummies(df, 'zipcode')
 
+    df.MonthlyIncome = pl.cut_variable(df.MonthlyIncome, 20)
+    df = pl.create_dummies(df, 'MonthlyIncome')
+
+    df.RevolvingUtilizationOfUnsecuredLines = pl.cut_variable(df.RevolvingUtilizationOfUnsecuredLines, 10)
+    df = pl.create_dummies(df, 'RevolvingUtilizationOfUnsecuredLines')
+
+    df['NumberOfTime30-59DaysPastDueNotWorse'] = pl.cut_variable(df['NumberOfTime30-59DaysPastDueNotWorse'], [0, 1, float('inf')], labels=['Zero', 'One or more'])
+    df = pl.create_dummies(df, 'NumberOfTime30-59DaysPastDueNotWorse')
+
+    df['NumberOfTime60-89DaysPastDueNotWorse'] = pl.cut_variable(df['NumberOfTime60-89DaysPastDueNotWorse'], [0, 1, float('inf')], labels=['Zero', 'One or more'])
+    df = pl.create_dummies(df, 'NumberOfTime60-89DaysPastDueNotWorse')
+
+    df['NumberOfTimes90DaysLate'] = pl.cut_variable(df['NumberOfTimes90DaysLate'], [0, 1, float('inf')], labels=['Zero', 'One or more'])
+    df = pl.create_dummies(df, 'NumberOfTimes90DaysLate')
+
     return df
 
 
-def build_eval_model(df):
+def build_eval_model(df, target_col):
     '''
     Builds a decision tree model to predict finanical distress within the next
     two years and assesses the model's accuracy the mean accuracy of the
@@ -105,13 +113,14 @@ def build_eval_model(df):
 
     For later implementation: splitting data into test and training sets
     '''
-    features = df.drop(['PersonID', 'SeriousDlqin2yrs'], axis=1)
-    target = df.SeriousDlqin2yrs
-    dt = pl.generate_decision_tree(features, target)
+    dt = tree.DecisionTreeClassifier(criterion='entropy', max_depth=15)
+    
+    features = df.drop(target_col, axis=1)
+    target = df[target_col]
 
-    accuracy = pl.score_decision_tree(dt, features, target)
+    dt = pl.generate_decision_tree(features, target, dt=dt)
 
-    return dt, accuracy
+    return dt
 
 
 if __name__ == '__main__':
