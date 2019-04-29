@@ -298,6 +298,8 @@ def generate_decision_tree(features, target, dt=None):
 
 def score_decision_tree(dt, test_features, test_target):
     '''
+    (Soon to be) DEPRECATED. Use calculate_accuracy instead.
+
     Returns the mean accuracy of the decision tree's predictions on a set of
     test data.
 
@@ -377,6 +379,54 @@ def generate_bagging_classifer(base):
     pass
 
 def generate_boosting_classifier(base):
+    '''
+    Stub.
+    '''
+    pass
+
+def generate_classifiers(features, target, models=None):
+    '''
+    Stub.
+    '''
+    pass
+
+def predict_outcomes(features, model):
+    '''
+    Stub.
+    '''
+    pass
+
+def calculate_accuracy(predicted, actual, threshold, labels=None):
+    '''
+    Stub.
+    '''
+    pass
+
+def calculate_precision(predicted, actual, threshold, labels=None):
+    '''
+    Stub.
+    '''
+    pass
+
+def calculate_recall(predicted, actual, threshold, labels=None):
+    '''
+    Stub.
+    '''
+    pass
+
+def calculate_f1(predicted, actual, threshold, label=None):
+    '''
+    Stub.
+    '''
+    pass
+
+def calculate_roc_auc(scores, actual):
+    '''
+    Stub.
+    '''
+    pass
+
+def calculate_precsion_recall_curve(scores, actual):
     '''
     Stub.
     '''
