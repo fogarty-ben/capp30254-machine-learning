@@ -431,3 +431,21 @@ def calculate_precsion_recall_curve(scores, actual):
     Stub.
     '''
     pass
+
+def split_temporal(time_length): 
+    '''
+    Stub.
+    '''
+    pass
+
+def validate_temporal(time_length):
+    '''
+    Stub.
+    '''
+    pass
+
+def validate_model(predicted, actual):
+    '''
+    Stub.
+    '''
+    pass
