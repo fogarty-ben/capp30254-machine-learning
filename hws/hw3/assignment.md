@@ -20,7 +20,7 @@ In this homework, you'll you've continue to build the Machine Learning pipeline 
 
 5. Create temporal validation function in your pipeline that can create training and test sets over time. You can choose the length of these splits based on analyzing the data. For example, the test sets could be six months long and the training sets could be all the data before each test set.  
 
-## Analysis:
+## Analysis
 
 6. Once you've set up the improved pipeline, you should apply it to solve the following problem:  
 
@@ -31,7 +31,7 @@ The data spans Jan 1, 2012 to Dec 31, 2013. You should have your validation/test
 
 The code should produce a table with results across train test splits over time and performance metrics (baseline, precision and recall at different thresholds 1%, 2%, 5%, 10%, 20%, 30%, 50% and AUC_ROC)  
 
-## Report:
+## Report
 
 You should also write a short report (~2 pages) that compares the performance of the different classifiers across all the metrics for the data set used in the last assignment. Which classifier does better on which metrics? How do the results change over time? What would be your recommendation to someone who's working on this model to identify 5% of posted projects to intervene with, which model should they decide to go forward with and deploy?  
 
