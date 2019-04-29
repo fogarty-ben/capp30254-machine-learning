@@ -1,9 +1,9 @@
 '''
-Simple Machine Learning Pipeline
+Machine Learning Pipeline
 
 Ben Fogarty
 
-18 April 2018
+2 May 2019
 '''
 
 from textwrap import wrap
@@ -345,3 +345,39 @@ def visualize_decision_tree(dt, feature_names, class_names, filepath='tree'):
                                     class_names=class_names, filled=True)
     graph = graphviz.Source(dot_data)
     output_path = graph.render(filename=filepath, view=True)
+
+def generate_logistic_regressision():
+    '''
+    Stub.
+    '''
+    pass
+
+def generate_knn_classifier():
+    '''
+    Stub.
+    '''
+    pass
+
+def generate_svm_classifier():
+    '''
+    Stub.
+    '''
+    pass
+
+def generate_random_forest():
+    '''
+    Stub.
+    '''
+    pass
+
+def generate_bagging_classifer(base):
+    '''
+    Stub.
+    '''
+    pass
+
+def generate_boosting_classifier(base):
+    '''
+    Stub.
+    '''
+    pass
