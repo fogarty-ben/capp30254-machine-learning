@@ -7,8 +7,7 @@ Ben Fogarty
 '''
 
 from textwrap import wrap
-from sklearn import tree
-from sklearn import linear_model
+from sklearn import *
 import graphviz
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -269,60 +268,6 @@ def create_dummies(df, column):
 
     return output
 
-def generate_decision_tree(features, target, dt=None):
-    '''
-    Generates a decision tree to predict a target attribute (target) based on
-    other attributes (features).
-
-    Inputs:
-    features (pandas dataframe): data for features to build the decision tree
-        with; all columns must be numeric in type
-    target (pandas series): data for target attribute the decision tree is
-        designed to predict; should be categorical data with a numerial form
-    dt (sklearn.tree.DecisionTree): optional DecisionTreeClassifier object so
-        the parameters of the DecisionTreeClassifier can be specified; if
-        unspecified, a new DecisionTreeClassifier object will be instantiated
-        with all the default arguments
-
-    Returns: sklearn.tree.DecisionTreeClassifier, the trained
-        DecisionTreeClassifier
-
-    Citations:
-    DecisionTreeClassifier docs: https://scikit-learn.org/stable/modules/
-        generated/sklearn.tree.DecisionTreeClassifier.html#
-        sklearn.tree.DecisionTreeClassifier
-    '''
-    if not dt:
-        dt = tree.DecisionTreeClassifier()
-
-    return dt.fit(features, target)
-
-def score_decision_tree(dt, test_features, test_target):
-    '''
-    (Soon to be) DEPRECATED. Use calculate_accuracy instead.
-
-    Returns the mean accuracy of the decision tree's predictions on a set of
-    test data.
-
-    Inputs:
-    dt (sklearn.tree.DecisionTreeClassifier): a trained decision tree classifier
-        model
-    test_features (pandas dataframe): testing data for the features in the
-        decision tree; structure of the data (columns and column types) must
-        match the data used to train the decision tree
-    target (pandas series): testing data for the target attribute a decision
-        tree is predicting; structure of the data (columns and column types)
-        must match the data used to train the decision tree
-
-    Returns: float
-
-    Citations:
-    DecisionTreeClassifier docs: https://scikit-learn.org/stable/modules/
-        generated/sklearn.tree.DecisionTreeClassifier.html#
-        sklearn.tree.DecisionTreeClassifier
-    '''
-    return dt.score(test_features, test_target)
-
 def visualize_decision_tree(dt, feature_names, class_names, filepath='tree'):
     '''
     Saves and opens a PDF visualizing the specified decision tree.
@@ -349,128 +294,134 @@ def visualize_decision_tree(dt, feature_names, class_names, filepath='tree'):
     graph = graphviz.Source(dot_data)
     output_path = graph.render(filename=filepath, view=True)
 
-def generate_logistic_regressision(features, target, params=None):
+def generate_classifiers(features, target, models):
     '''
-    Generates a logistic regression model to predict a target attribute (target)
+    Generates one or more classifiers to predict a target attribute (target)
     based on other attributes (features).
 
     Inputs:
-    features (pandas dataframe): data for features to build the logistic
-        regression with; all columns must be numeric in type
-    target (pandas series): data for target attribute the logistic regression is
-        designed to predict; should be categorical data with a numerical form
-    dt (dictionary): optional dictionary of keyword parameters used for the
-        logistic regression model; keys should be strings with the names of of
-        valid keyword arguments for an sklearn.linear_model.LogisticRegression
-        object and the values should be valid inputs for that keyword parameter
+    features (pandas dataframe): Data for features to build the classifier(s)
+        with; all columns must be numeric in type
+    target (pandas series): Data for target attribute to build the classifier(s)
+        with; should be categorical data in a numerical form
+    models (list of dicts): A list of dictionaries specifying the classifier
+        models to generate. Each dictionary must contain a "model" key with a
+        value specifying the type of model to generate; currently supported
+        types are listed below. All other entries in the dictionary are optional
+        and should have the key as the name of a parameter for the specified
+        classifier and the value as the desired value of that parameter.
 
-    Returns: sklearn.linear_model.LogisticRegression, the trained logistic
-        regression classifier
+    Returns: list of trained classifier objects
 
-    Citations:
-    https://scikit-learn.org/stable/modules/generated/
-        sklearn.linear_model.LogisticRegression.html
-    '''
-    if not params:
-        params = {}
+    Currently supported model types:
+    'dt': sklearn.tree.DecisionTreeClassifier
+    'lr': sklearn.linear_model.LogisticRegression
+    'knn': sklearn.neighbors.KNeighborsClassifier
+    'svc': sklearn.svm.LinearSVC
+    'rf': sklearn.ensemble.RandomForestClassifier
+    'boosting': sklearn.ensemble.AdaBoostClassifier
+    'bagging': sklearn.ensemble.BaggingClassifier
 
-    lr = linear_model.LogisticRegression(**params)
-    return lr.fit(features, target)
+    Example usage:
+    generate_classifiers(x, y, [{'model': 'dt', 'max_depth': 5}, 
+                                {'model': 'knn', 'n_neighbors': 10}])
 
-def generate_knn_classifier():
-    '''
-    Stub.
-    '''
-    pass
+    The above line will generate two classifiers, the first of which is a 
+    decision tree classifier with a max depth of 5, and the second of which is a
+    k nearest neighbors model with k=10.
 
-def generate_svm_classifier():
+    For more information on valid parameters to include in the dictionaries,
+    consult the sklearn documentation for each model.
     '''
-    Stub.
-    '''
-    pass
+    model_class = {'dt': tree.DecisionTreeClassifier,
+                   'lr': linear_model.LogisticRegression,
+                   'knn': neighbors.KNeighborsClassifier,
+                   'svc': svm.LinearSVC,
+                   'rf': ensemble.RandomForestClassifier,
+                   'boosting': ensemble.AdaBoostClassifier,
+                   'bagging': ensemble.BaggingClassifier}
 
-def generate_random_forest():
-    '''
-    Stub.
-    '''
-    pass
+    classifiers = []
 
-def generate_bagging_classifer(base):
-    '''
-    Stub.
-    '''
-    pass
+    for model_specs in models:
+        model_type = model_specs.pop('model')
+        model = model_class[model_type](**model_specs)
+        model.fit(features, target)
+        classifiers.append(model)
 
-def generate_boosting_classifier(base):
-    '''
-    Stub.
-    '''
-    pass
+    return classifiers
 
-def generate_classifiers(features, target, models=None):
+def evaluate_classifiers(model, features, target, thresholds):
     '''
-    Stub.
-    '''
-    pass
+    Calculates a number of evaluation metrics (accuracy precision, recall, and
+    F1 at different levels and AUC-ROC) and generates a graph of the
+    precision-recall curve for a given model.
 
-def predict_outcomes(features, model):
+    models (trained sklearn classifier): the model to evaluate
+    features (pandas dataframe): test data for the features in the
+        classifier; structure of the data (columns and column types) must
+        match the data used to train the classifier
+    target (pandas series): test data for the target attribute the classifier
+        predicts (i.e. the true class of each observation in the test data)
+    thresholds (list of ints): a list of different threshold levels to use when
+        calculating precision, recall and F1
+    
+    Returns: tuple of pandas series and matplotlib figure
     '''
-    Stub.
-    '''
-    pass
+    index = [['Accuracy'] * len(thresholds) +['Precision'] * len(thresholds) + 
+             ['Recall'] * len(thresholds) + ['F1'] * len(thresholds),
+             thresholds * 4]
+    index = list(zip(*index))
+    index.append(('AUC-ROC', None))
+    index = pd.MultiIndex.from_tuples(index, names=['Metric', 'Threshold']) 
+    evaluations = pd.Series(index=index)
 
-def calculate_accuracy(predicted, actual, threshold, labels=None):
-    '''
-    Stub.
-    '''
-    pass
+    pred_prob = model.predict_proba(features)
 
-def calculate_precision(predicted, actual, threshold, labels=None):
-    '''
-    Stub.
-    '''
-    pass
+    for threshold in thresholds:
+        pred_class = pred_prob < threshold
+        evaluations['Accuracy', threshold] = metrics.accuracy_score(target, pred_class)
+        evaluations['Precision', threshold] = metrics.precision_score(target, pred_class)
+        evaluations['Recall', threshold] = metrics.recall_score(target, pred_class)
+        evaluations['F1', threshold] = metrics.f1_score(target, pred_class)
 
-def calculate_recall(predicted, actual, threshold, labels=None):
-    '''
-    Stub.
-    '''
-    pass
+    evaluations['AUC-ROC', None] = metrics.roc_auc_score(target, pred_prob)
 
-def calculate_f1(predicted, actual, threshold, label=None):
-    '''
-    Stub.
-    '''
-    pass
+    return evaluations
 
-def calculate_roc_auc(scores, actual):
+def create_temporal_splits(df, date_col, time_length, start_date=None): 
     '''
-    Stub.
-    '''
-    pass
+    Splits into different sets by time intervals.
 
-def calculate_precsion_recall_curve(scores, actual):
-    '''
-    Stub.
-    '''
-    pass
+    Inputs:
+    df (pandas dataframe): the full dataset to split
+    date_col (str): the name of the column in the dataframe containing the date
+        attribute to split on
+    time_length (str): the length of time to include within each split set (the
+        final set may be shorter if the length does not perfectly coincide with
+        the available data); value must be parsable by pd.to_timedelta (strings
+        containg a magnitude then unit are generally valid, for example,
+        "6 months")
+    start_date (str): the first date to include in the splits; value should be
+        in the form "yyyy-mm-dd"
 
-def split_temporal(time_length): 
+    Returns: list of pandas dataframes, the split datasets in temporal order
     '''
-    Stub.
-    '''
-    pass
+    time_length = pd.to_timedelta(time_length)
+    df[date_col] = pd.to_datetime(df[date_col])
+    if start_date:
+        start_date = pd.to_datetime(start_date, format='yyyy-mm-dd')
+        df = df[df[date_col] > start_date]
+    else:
+        start_date = min(df[date_col])
+    
+    splits = []
+    max_date = max(df[date_col])
+    i = 0
+    while start_date + (i * time_length) < max_date:
+        lower_mask = (start_date + (i * time_length)) <= df[date_col]
+        upper_mask = df[date_col] < (start_date + ((i + 1) * time_length))
+        splits.append(df[lower_mask & upper_mask])
+        i += 1
 
-def validate_temporal(time_length):
-    '''
-    Stub.
-    '''
-    pass
-
-def validate_model(predicted, actual):
-    '''
-    Stub.
-    '''
-    pass
-
-#Unpacking keyword args https://thispointer.com/python-how-to-unpack-list-tuple-or-dictionary-to-function-arguments-using/
+    return splits
