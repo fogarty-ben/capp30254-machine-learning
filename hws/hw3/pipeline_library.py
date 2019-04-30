@@ -8,6 +8,7 @@ Ben Fogarty
 
 from textwrap import wrap
 from sklearn import tree
+from sklearn import linear_model
 import graphviz
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -348,11 +349,33 @@ def visualize_decision_tree(dt, feature_names, class_names, filepath='tree'):
     graph = graphviz.Source(dot_data)
     output_path = graph.render(filename=filepath, view=True)
 
-def generate_logistic_regressision():
+def generate_logistic_regressision(features, target, params=None):
     '''
-    Stub.
+    Generates a logistic regression model to predict a target attribute (target)
+    based on other attributes (features).
+
+    Inputs:
+    features (pandas dataframe): data for features to build the logistic
+        regression with; all columns must be numeric in type
+    target (pandas series): data for target attribute the logistic regression is
+        designed to predict; should be categorical data with a numerical form
+    dt (dictionary): optional dictionary of keyword parameters used for the
+        logistic regression model; keys should be strings with the names of of
+        valid keyword arguments for an sklearn.linear_model.LogisticRegression
+        object and the values should be valid inputs for that keyword parameter
+
+    Returns: sklearn.linear_model.LogisticRegression, the trained logistic
+        regression classifier
+
+    Citations:
+    https://scikit-learn.org/stable/modules/generated/
+        sklearn.linear_model.LogisticRegression.html
     '''
-    pass
+    if not params:
+        params = {}
+
+    lr = linear_model.LogisticRegression(**params)
+    return lr.fit(features, target)
 
 def generate_knn_classifier():
     '''
