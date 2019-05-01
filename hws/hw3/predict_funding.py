@@ -158,3 +158,8 @@ def explore_data(df):
     print(pl.pw_correlate(df.drop(['school_latitude', 'school_longitude'], axis=1), 
                           visualize=True))
 
+    print(pl.find_outliers(df, excluded=['school_latitude', 'school_longitude']))
+    print()
+
+    print('----------------------\n| Comparing School IDs |\n----------------------')
+    #add line to check if schoolid and school_ncesid are 1:1
