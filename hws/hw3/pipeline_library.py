@@ -37,6 +37,28 @@ def read_csv(filepath, cols=None, col_types=None, index_col=None):
     return pd.read_csv(filepath, usecols=cols, dtype=col_types,
                        index_col=index_col)
 
+def count_per_categorical(df, cat_column):
+    '''
+    Summaries the number of observations associated with each value in a given
+    categorical column and shows the distribtuion of observations across
+    categories.
+    
+    Inputs:
+    df (pandas dataframe): the dataset
+    cat_column (str): the name of the categorical column
+
+    Returns: tuple of pandas dataframe, matplotlib figure
+    '''
+    count_per = df.groupby(cat_column)\
+                  .count()\
+                  .iloc[:, 0]\
+                  .rename('obs_per_{}'.format(cat_column))
+
+    summary = count_per.describe()
+    fig = show_distribution(count_per)
+
+    return summary, fig
+
 def show_distribution(series):
     '''
     Graphs a histogram and the box plot of numeric type series and a bar plot
@@ -224,7 +246,7 @@ def preprocess_data(df):
     '''
     return df.apply(replace_missing, axis=0)
 
-def cut_variable(series, bins, labels=None, kwargs):
+def cut_variable(series, bins, labels=None, kwargs=None):
     '''
     Discretizes a continuous variable into bins. Bins are half-closed, [a, b).
 
@@ -244,6 +266,9 @@ def cut_variable(series, bins, labels=None, kwargs):
 
     Return: pandas series
     '''
+    if not kwargs:
+        kwargs = {}
+
     if isinstance(bins, int):
         return pd.qcut(series, bins, labels=labels, duplicates='drop', **kwargs)\
                  .astype('category')
@@ -251,28 +276,51 @@ def cut_variable(series, bins, labels=None, kwargs):
     return pd.cut(series, bins, labels=labels, include_lowest=True, **kwargs)\
              .astype('category')
 
-def create_dummies(df, column):
+def create_dummies(df, columns, kwargs=None):
     '''
-    Transforms a variable into a set of dummy variables.
+    Transforms variables into a set of dummy variables.
 
     Inputs:
-    series (pandas dataframe/series): the data to transform dummies in
-    column (list of strs): column name containing categorical
-        variables to convert to dummy variables; if not specified then any
-        colums with dtype object or category are converted
+    df (pandas dataframe/series): the data to transform dummies in;
+        all columns not being converted to dummies must be numeric
+        types
+    columns (list of strs): column names containing categorical
+        variables to convert to dummy variables
+    kwargs (dict): optional keyword arguments to pass to pd.get_dummies
 
     Returns: pandas dataframe where the columns to be converted is replaced with
         columns containing dummy variables
     '''
-    col = df[column]
-    values = list(col.value_counts().index)
-    output = df.drop(column, axis=1)
-    for value in values:
-        dummy_name = '{}_{}'.format(column, value)
-        output[dummy_name] = (col == value)
-        output.loc[col.isnull(), dummy_name] = float('nan')
+    if not kwargs:
+        kwargs = {}
 
-    return output
+    return pd.get_dummies(df, columns=columns, **kwargs)
+
+def cut_frequency(series, value=None, quantile=None):
+    '''
+    Transforms variable into true/false based on whether how frequently its
+    values appear in the dataset.
+
+    Inputs:
+    series (pandas series): the variable to transform
+    value (int or float): the threshold value; observations with values of the
+        variable that appear at least this many times will be evaluate as true
+        and observations that appear fewer than this number of times will be
+        evaluated as false; one of value or quantile must be specified
+    quantile (float) the threshold value; observations with values of the
+        variable that appear at least at or above this quantile evaluate as true
+        and observations that appear fewer than this quantil will be
+        evaluated as false; one of value or quantile must be specified
+
+    Returns: pandas series:
+    '''
+    assert bool(value) + bool(quantile) == 1, ("Exactly one of value or " +
+                                               "quantile must be specified.")
+    val_counts = series.value_counts()
+    if quantile:
+        value = np.quantile(val_counts, quantile)
+
+    return series.apply(lambda x: val_counts[x] >= value)
 
 def create_time_diff(start_dates, end_dates):
     '''
@@ -287,6 +335,25 @@ def create_time_diff(start_dates, end_dates):
     Returns: pandas series of timedelta objects
     '''
     return end_dates - start_dates
+
+def report_n_missing(df):
+    '''
+    Reports the percent of missing (float.NaN or None) values for each column
+    in a dataframe.
+
+    Inputs:
+    df (pandas dataframe): the dataset
+
+    Returns: pandas dataframe
+    '''
+    missing = pd.DataFrame(columns=['# Missing'])
+
+    for column in df.columns:
+        missing.loc[column, '# Missing'] = np.sum(df[column].isna())
+
+    missing['% Missing'] = missing['# Missing'] / len(df) * 100
+
+    return missing
 
 def visualize_decision_tree(dt, feature_names, class_names, filepath='tree'):
     '''
