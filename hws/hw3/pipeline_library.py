@@ -133,8 +133,11 @@ def summarize_data(df, grouping_vars=None, agg_cols=None):
 
     Returns: pandas dataframe
     '''
+    if not grouping_vars:
+        grouping_vars = []
     if agg_cols:
-        df = df[agg_cols]
+        keep =  grouping_vars + agg_cols
+        df = df[keep]
 
     if grouping_vars:
         summary = df.groupby(grouping_vars)\
