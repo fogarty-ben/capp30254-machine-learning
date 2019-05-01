@@ -50,6 +50,7 @@ def show_distribution(series):
     Citations:
     Locating is_numeric_dtype: https://stackoverflow.com/questions/19900202/
     '''
+    series = series.dropna()
     sns.set()
     if pd.api.types.is_numeric_dtype(series):
         f, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
@@ -124,10 +125,10 @@ def summarize_data(df, grouping_vars=None, agg_cols=None):
     Inputs:
     df (pandas dataframe): dataframe containing the variables to calculate
         pairwise correlation between
-    grouping_vars (str or list of strs): optional variable or list of variables
+    grouping_vars (list of strs): optional list of variables
         to group on before aggregating; each passed str must be name of a column
         in the dataframe; if not included, no grouping is performed
-    agg_cols (str or list of strs): the variable or list of variables to
+    agg_cols (list of strs): optional list of variables to
         aggregate after grouping; each passed str must be name of a column in
         the dataframe; default is all numeric type variables in the dataframe
 
