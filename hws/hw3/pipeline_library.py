@@ -351,7 +351,7 @@ def generate_classifiers(features, target, models):
 
     return classifiers
 
-def evaluate_classifiers(model, features, target, thresholds):
+def evaluate_classifier(model, features, target, thresholds):
     '''
     Calculates a number of evaluation metrics (accuracy precision, recall, and
     F1 at different levels and AUC-ROC) and generates a graph of the
@@ -376,10 +376,10 @@ def evaluate_classifiers(model, features, target, thresholds):
     index = pd.MultiIndex.from_tuples(index, names=['Metric', 'Threshold']) 
     evaluations = pd.Series(index=index)
 
-    pred_prob = model.predict_proba(features)
+    pred_prob = model.predict_proba(features)[:, 1]
 
     for threshold in thresholds:
-        pred_class = pred_prob < threshold
+        pred_class = pred_prob > threshold
         evaluations['Accuracy', threshold] = metrics.accuracy_score(target, pred_class)
         evaluations['Precision', threshold] = metrics.precision_score(target, pred_class)
         evaluations['Recall', threshold] = metrics.recall_score(target, pred_class)
@@ -387,7 +387,20 @@ def evaluate_classifiers(model, features, target, thresholds):
 
     evaluations['AUC-ROC', None] = metrics.roc_auc_score(target, pred_prob)
 
-    return evaluations
+    sns.set()
+    fig, ax = plt.subplots()
+    precision, recall, thresholds = metrics.precision_recall_curve(target, pred_prob)
+    sns.lineplot(recall, precision, drawstyle='steps-post', ax=ax)
+
+    ax.fill_between(recall, precision, alpha=0.2, step='pre')
+    ax.set_xlabel('Recall')
+    ax.set_ylabel('Precision')
+    ax.set_xlim([0.0, 1.0])
+    ax.set_ylim([0.0, 1.01])
+    fig.suptitle('Precision-Recall Curve')
+
+
+    return evaluations, fig
 
 def create_temporal_splits(df, date_col, time_length, start_date=None): 
     '''
