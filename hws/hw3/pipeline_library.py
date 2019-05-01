@@ -224,7 +224,7 @@ def preprocess_data(df):
     '''
     return df.apply(replace_missing, axis=0)
 
-def cut_variable(series, bins, labels=None):
+def cut_variable(series, bins, labels=None, kwargs):
     '''
     Discretizes a continuous variable into bins. Bins are half-closed, [a, b).
 
@@ -240,14 +240,15 @@ def cut_variable(series, bins, labels=None):
           specified will be labeled as missing
     labels (list of str): optional list of labels for the bins; must be the same
         length as the number of bins specified
+    kwargs (dictionary): keyword arguments to pass to either pd.cut or pd.qcut
 
     Return: pandas series
     '''
     if isinstance(bins, int):
-        return pd.qcut(series, bins, labels=labels, duplicates='drop')\
+        return pd.qcut(series, bins, labels=labels, duplicates='drop', **kwargs)\
                  .astype('category')
 
-    return pd.cut(series, bins, labels=labels, include_lowest=True)\
+    return pd.cut(series, bins, labels=labels, include_lowest=True, **kwargs)\
              .astype('category')
 
 def create_dummies(df, column):
