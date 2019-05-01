@@ -48,8 +48,21 @@ def go(file):
                  'datefullyfunded': str}
     df = pl.read_csv(file, col_types=col_types, index_col='projectid')
     df = transform_data(df)
-    
+
     explore_data(df)
+    splits = pl.create_temporal_splits(df, 'date_posted', {'months': 6})
+    del(df) #full df no longer needed after splits
+
+    train_splits = splits[0:1]
+    for i in range(1, len(splits) - 1):
+        train_splits[i] = train_splits[i - 1].append(train_splits[i])
+        split[i] = generate_features
+    #df = pl.preprocess_data(df)
+    #df = generate_features(df)
+    return df
+    '''
+    explore_data(df)
+    '''
 
 def transform_data(df):
     '''
@@ -94,6 +107,21 @@ def explore_data(df):
     p_positive = n_positive / n_projects * 100
     print('{0} projects ({1:.1f}%) '.format(n_positive, p_positive) +
           'were funded within sixty days of posting.\n')
+    print()
+
+    per_teach_desc, per_teach_fig = pl.count_per_categorical(df, 'teacher_acctid')
+    print(per_teach_desc)
+    per_teach_fig.show()
+    print()
+
+    per_dist_desc, per_dist_fig = pl.count_per_categorical(df, 'school_district')
+    print(per_dist_desc)
+    per_dist_fig.show()
+    print()
+    
+    per_school_desc, per_school_fig = pl.count_per_categorical(df, 'schoolid')
+    print(per_school_desc)
+    per_school_fig.show()
     print()
 
     print(pl.summarize_data(df, agg_cols=['daystofullfunding']))
@@ -158,8 +186,43 @@ def explore_data(df):
     print(pl.pw_correlate(df.drop(['school_latitude', 'school_longitude'], axis=1), 
                           visualize=True))
 
-    print(pl.find_outliers(df, excluded=['school_latitude', 'school_longitude']))
-    print()
+    print('----------------------\n| Outliers & missing data |\n----------------------')
+    print(pl.report_n_missing(df))
 
-    print('----------------------\n| Comparing School IDs |\n----------------------')
-    #add line to check if schoolid and school_ncesid are 1:1
+
+def generate_features(df):
+    '''
+    Generates categorical and binary features.
+
+    Inputs:
+    df (pandas dataframe): the dataframe
+
+    Returns: pandas dataframe, the dataset after generating features
+    '''
+    df = df.drop(['school_longitude', 'school_latitude'], axis=1)
+    
+    numeric_cols = ['students_reached', 'total_price_including_optional_support']
+    for col in numeric_cols:
+        df[col] = pl.cut_variable(df[col], 10, 
+                                  labels=['dec' + str(i / 10) for i in range(10)])
+
+    cat_cols = ['school_city', 'school_state', 'school_metro',
+                'school_county', 'teacher_prefix',
+                'primary_focus_subject', 'primary_focus_area',
+                'secondary_focus_subject', 'secondary_focus_area',
+                'resource_type',
+                'poverty_level', 'grade_level'] + numeric_cols
+    df = pl.create_dummies(df, cat_cols)
+
+    df['schoolprojs_over_.75q'] = pl.cut_frequency(df.schoolid, quantile=.75)
+    df['teacher_multiple_projs'] = pl.cut_frequency(df.teacher_acctid, value=2)
+    df['districtprojs_over_.75q'] = pl.cut_frequency(df.school_district,
+                                                       quantile=.75)
+    df = df.drop(['schoolid', 'teacher_acctid', 'school_district', 
+                  'school_ncesid'], axis=1)
+
+
+    df['fully_funded_60days'] = df.daystofullfunding <= 60
+    df = df.drop(['daystofullfunding', 'date_posted', 'datefullyfunded'], axis=1)
+    return df
+
