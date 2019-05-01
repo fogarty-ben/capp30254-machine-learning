@@ -6,6 +6,7 @@ Ben Fogarty
 2 May 2019
 '''
 
+import dateutil.relativedelta as relativedelta
 from textwrap import wrap
 from sklearn import *
 import graphviz
@@ -268,6 +269,20 @@ def create_dummies(df, column):
 
     return output
 
+def create_time_diff(start_dates, end_dates):
+    '''
+    Calculates the time difference between two date columns.
+
+    Inputs: 
+    start_dates (pandas series): the start dates to calculate the difference
+        from; column should be have type datetime
+    end_dates (pandas series): the end dates to calculate the difference to;
+        columns should have type datetime
+
+    Returns: pandas series of timedelta objects
+    '''
+    return end_dates - start_dates
+
 def visualize_decision_tree(dt, feature_names, class_names, filepath='tree'):
     '''
     Saves and opens a PDF visualizing the specified decision tree.
@@ -410,18 +425,15 @@ def create_temporal_splits(df, date_col, time_length, start_date=None):
     df (pandas dataframe): the full dataset to split
     date_col (str): the name of the column in the dataframe containing the date
         attribute to split on
-    time_length (str): the length of time to include within each split set (the
-        final set may be shorter if the length does not perfectly coincide with
-        the available data); value must be parsable by pd.to_timedelta (strings
-        containg a magnitude then unit are generally valid, for example,
-        "6 months")
+    time_length (dictionary): specifies the time length of each split, with
+        strings of units of time (i.e. hours, days, months, years, etc.) as keys
+        and integer as values; for example 6 months would be {'months': 6}
     start_date (str): the first date to include in the splits; value should be
         in the form "yyyy-mm-dd"
 
     Returns: list of pandas dataframes, the split datasets in temporal order
     '''
-    time_length = pd.to_timedelta(time_length)
-    df[date_col] = pd.to_datetime(df[date_col])
+    time_length = relativedelta.relativedelta(**time_length)
     if start_date:
         start_date = pd.to_datetime(start_date, format='yyyy-mm-dd')
         df = df[df[date_col] > start_date]
