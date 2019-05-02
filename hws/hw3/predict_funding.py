@@ -50,19 +50,51 @@ def go(file):
     df = transform_data(df)
 
     explore_data(df)
-    splits = pl.create_temporal_splits(df, 'date_posted', {'months': 6})
+    training, testing = pl.create_temporal_splits(df, 'date_posted', {'months': 6})
     del(df) #full df no longer needed after splits
 
-    train_splits = splits[0:1]
-    for i in range(1, len(splits) - 1):
-        train_splits[i] = train_splits[i - 1].append(train_splits[i])
-        split[i] = generate_features
-    #df = pl.preprocess_data(df)
-    #df = generate_features(df)
-    return df
-    '''
-    explore_data(df)
-    '''
+
+    for i in range(len(training)):
+        training[i] = preprocess_data(training[i])
+        testing[i] = preprocess_data(testing[i])
+        training[i] = generate_features(training[i])
+        testing[i] = generate_features(testing[i])
+    
+    models = [{'model': 'dt',
+               'criterion': 'entropy',
+               'max_depth': 35},
+               {'model': 'lr'},
+               {'model': 'knn',
+                'n_neighbors': 15},
+               {'model': 'svc'},
+               {'model': 'rf',
+                'criterion': 'entropy',
+                'max_depth': 50},
+               {'model': 'boosting',
+                'n_estimators': 10},
+               {'model': 'bagging',
+                'base_estimator': tree.DecisionTreeClassifier(max_depth=30)}] #check this
+
+    classifiers = []
+    for i in range(len(training)):
+        print('loop {}'.format(i))
+        features = training[i].drop('fully_funded_60days', axis=1)
+        target = training[i].fully_funded_60days
+        classifiers.append(pl.generate_classifiers(features, target, models))
+
+    print(classifiers)
+
+    for i in range(len(testing)):
+        features = testing[i].drop('fully_funded_60days', axis=1)
+        y_actual = testing[i].fully_funded_60days
+        for j in range(len(models)):
+            table, fig = pl.evaluate_classifier(models[i][j], features, y_actual,
+                                                [0.5])
+            print(table)
+            fig.show()
+
+
+    return training, testing
 
 def transform_data(df):
     '''
@@ -189,6 +221,20 @@ def explore_data(df):
     print('----------------------\n| Outliers & missing data |\n----------------------')
     print(pl.report_n_missing(df))
 
+def preprocess_data(df):
+    '''
+    Preprocesses the data
+
+    Inputs:
+    df (pandas dataframe): the dataset
+
+    Returns: pandas dataframe
+    '''
+    df['secondary_focus_area'] = df.secondary_focus_area.fillna('N/A')
+    df['secondary_focus_subject'] = df.secondary_focus_subject.fillna('N/A')
+    df = pl.preprocess_data(df)
+
+    return df
 
 def generate_features(df):
     '''
@@ -199,7 +245,9 @@ def generate_features(df):
 
     Returns: pandas dataframe, the dataset after generating features
     '''
-    df = df.drop(['school_longitude', 'school_latitude'], axis=1)
+    df = df.drop(['school_longitude', 'school_latitude', 'schoolid',
+                  'teacher_acctid', 'school_district', 'school_ncesid'],
+                  axis=1)
     
     numeric_cols = ['students_reached', 'total_price_including_optional_support']
     for col in numeric_cols:
@@ -214,15 +262,12 @@ def generate_features(df):
                 'poverty_level', 'grade_level'] + numeric_cols
     df = pl.create_dummies(df, cat_cols)
 
-    df['schoolprojs_over_.75q'] = pl.cut_frequency(df.schoolid, quantile=.75)
-    df['teacher_multiple_projs'] = pl.cut_frequency(df.teacher_acctid, value=2)
-    df['districtprojs_over_.75q'] = pl.cut_frequency(df.school_district,
-                                                       quantile=.75)
-    df = df.drop(['schoolid', 'teacher_acctid', 'school_district', 
-                  'school_ncesid'], axis=1)
-
-
     df['fully_funded_60days'] = df.daystofullfunding <= 60
     df = df.drop(['daystofullfunding', 'date_posted', 'datefullyfunded'], axis=1)
     return df
+
+if __name__ == '__main__':
+    usage = "python3 predict_funding.py <dataset> <parameters>"
+    filepath = sys.argv[1]
+    go(filepath)
 

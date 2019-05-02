@@ -296,32 +296,6 @@ def create_dummies(df, columns, kwargs=None):
 
     return pd.get_dummies(df, columns=columns, **kwargs)
 
-def cut_frequency(series, value=None, quantile=None):
-    '''
-    Transforms variable into true/false based on whether how frequently its
-    values appear in the dataset.
-
-    Inputs:
-    series (pandas series): the variable to transform
-    value (int or float): the threshold value; observations with values of the
-        variable that appear at least this many times will be evaluate as true
-        and observations that appear fewer than this number of times will be
-        evaluated as false; one of value or quantile must be specified
-    quantile (float) the threshold value; observations with values of the
-        variable that appear at least at or above this quantile evaluate as true
-        and observations that appear fewer than this quantil will be
-        evaluated as false; one of value or quantile must be specified
-
-    Returns: pandas series:
-    '''
-    assert bool(value) + bool(quantile) == 1, ("Exactly one of value or " +
-                                               "quantile must be specified.")
-    val_counts = series.value_counts()
-    if quantile:
-        value = np.quantile(val_counts, quantile)
-
-    return series.apply(lambda x: val_counts[x] >= value)
-
 def create_time_diff(start_dates, end_dates):
     '''
     Calculates the time difference between two date columns.
@@ -431,7 +405,8 @@ def generate_classifiers(features, target, models):
     classifiers = []
 
     for model_specs in models:
-        model_type = model_specs.pop('model')
+        model_type = model_specs['model']
+        model_specs = {key: val for key, val in model_specs.items() if not key == 'model'}
         model = model_class[model_type](**model_specs)
         model.fit(features, target)
         classifiers.append(model)
@@ -503,7 +478,8 @@ def create_temporal_splits(df, date_col, time_length, start_date=None):
     start_date (str): the first date to include in the splits; value should be
         in the form "yyyy-mm-dd"
 
-    Returns: list of pandas dataframes, the split datasets in temporal order
+    Returns: tuple of list of pandas dataframes, the first of which contains
+        test sets and the second of which contains training sets
     '''
     time_length = relativedelta.relativedelta(**time_length)
     if start_date:
@@ -521,4 +497,8 @@ def create_temporal_splits(df, date_col, time_length, start_date=None):
         splits.append(df[lower_mask & upper_mask])
         i += 1
 
-    return splits
+    train_splits = splits[:1]
+    for i in range(1, len(splits) - 1):
+        train_splits.append(train_splits[i - 1].append(splits[i]))
+
+    return train_splits, splits[1:]
