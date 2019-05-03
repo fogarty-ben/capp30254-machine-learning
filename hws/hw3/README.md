@@ -21,3 +21,8 @@ The project was developed using Python 3.7.3 on MacOS Mojave 10.14.4. It require
 | scikit-learn   | 0.20.3      |
 
 Helpful documentation and references are cited throughout the docstrings of the code.
+
+To run the program, use the following command:
+```
+python3 predict_funding.py <path to dataset>
+```
