@@ -12,7 +12,6 @@ import numpy as np
 import pandas as pd
 import pipeline_library as pl
 import matplotlib.pyplot as plt
-import gc
 
 def go(file):
     '''
