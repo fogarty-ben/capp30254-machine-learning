@@ -49,6 +49,7 @@ def count_per_categorical(df, cat_column):
 
     Returns: tuple of pandas dataframe, matplotlib figure
     '''
+    df = df[~df[cat_column].isna()]
     count_per = df.groupby(cat_column)\
                   .count()\
                   .iloc[:, 0]\
@@ -382,6 +383,7 @@ def generate_classifiers(features, target, models):
     'rf': sklearn.ensemble.RandomForestClassifier
     'boosting': sklearn.ensemble.AdaBoostClassifier
     'bagging': sklearn.ensemble.BaggingClassifier
+    'dummy': sklearn.dummy.DummyClassifier
 
     Example usage:
     generate_classifiers(x, y, [{'model': 'dt', 'max_depth': 5}, 
@@ -400,7 +402,8 @@ def generate_classifiers(features, target, models):
                    'svc': svm.LinearSVC,
                    'rf': ensemble.RandomForestClassifier,
                    'boosting': ensemble.AdaBoostClassifier,
-                   'bagging': ensemble.BaggingClassifier}
+                   'bagging': ensemble.BaggingClassifier,
+                   'dummy': dummy.DummyClassifier}
 
     classifiers = []
 
@@ -413,7 +416,8 @@ def generate_classifiers(features, target, models):
 
     return classifiers
 
-def evaluate_classifier(model, features, target, thresholds):
+def evaluate_classifier(model, features, target, thresholds, model_name,
+                        dataset_name):
     '''
     Calculates a number of evaluation metrics (accuracy precision, recall, and
     F1 at different levels and AUC-ROC) and generates a graph of the
@@ -427,6 +431,8 @@ def evaluate_classifier(model, features, target, thresholds):
         predicts (i.e. the true class of each observation in the test data)
     thresholds (list of ints): a list of different threshold levels to use when
         calculating precision, recall and F1
+    model_name (str): the name of the model being evaluated
+    dataset_name (str): the name of the dataset being evaluated
     
     Returns: tuple of pandas series and matplotlib figure
     '''
@@ -438,20 +444,26 @@ def evaluate_classifier(model, features, target, thresholds):
     index = pd.MultiIndex.from_tuples(index, names=['Metric', 'Threshold']) 
     evaluations = pd.Series(index=index)
 
-    pred_prob = model.predict_proba(features)[:, 1]
+    if isinstance(model, svm.LinearSVC):
+        pred_score = model.decision_function(features)
+    else:
+        pred_score = model.predict_proba(features)[:, 1]
 
     for threshold in thresholds:
-        pred_class = pred_prob > threshold
+        if isinstance(model, dummy.DummyClassifier):
+            pred_class = model.predict(features)
+        else:
+            pred_class = pred_score >= np.quantile(pred_score, 1 - threshold)
         evaluations['Accuracy', threshold] = metrics.accuracy_score(target, pred_class)
         evaluations['Precision', threshold] = metrics.precision_score(target, pred_class)
         evaluations['Recall', threshold] = metrics.recall_score(target, pred_class)
         evaluations['F1', threshold] = metrics.f1_score(target, pred_class)
 
-    evaluations['AUC-ROC', None] = metrics.roc_auc_score(target, pred_prob)
+    evaluations['AUC-ROC', None] = metrics.roc_auc_score(target, pred_score)
 
     sns.set()
     fig, ax = plt.subplots()
-    precision, recall, thresholds = metrics.precision_recall_curve(target, pred_prob)
+    precision, recall, thresholds = metrics.precision_recall_curve(target, pred_score)
     sns.lineplot(recall, precision, drawstyle='steps-post', ax=ax)
 
     ax.fill_between(recall, precision, alpha=0.2, step='pre')
@@ -459,7 +471,7 @@ def evaluate_classifier(model, features, target, thresholds):
     ax.set_ylabel('Precision')
     ax.set_xlim([0.0, 1.0])
     ax.set_ylim([0.0, 1.01])
-    fig.suptitle('Precision-Recall Curve')
+    fig.suptitle('Precision-Recall Curve: {}, {}'.format(model_name, dataset_name))
 
 
     return evaluations, fig

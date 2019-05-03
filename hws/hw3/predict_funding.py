@@ -11,6 +11,8 @@ from sklearn import tree
 import numpy as np
 import pandas as pd
 import pipeline_library as pl
+import matplotlib.pyplot as plt
+import gc
 
 def go(file):
     '''
@@ -50,51 +52,36 @@ def go(file):
     df = transform_data(df)
 
     explore_data(df)
+    df = preprocess_data(df)
+    df = generate_features(df)
     training, testing = pl.create_temporal_splits(df, 'date_posted', {'months': 6})
     del(df) #full df no longer needed after splits
 
-
     for i in range(len(training)):
-        training[i] = preprocess_data(training[i])
-        testing[i] = preprocess_data(testing[i])
-        training[i] = generate_features(training[i])
-        testing[i] = generate_features(testing[i])
+        training[i] = training[i].drop('date_posted', axis=1)
+        testing[i] = testing[i].drop('date_posted', axis=1)
     
     models = [{'model': 'dt',
                'criterion': 'entropy',
                'max_depth': 35},
-               {'model': 'lr'},
-               {'model': 'knn',
-                'n_neighbors': 15},
+               {'model': 'lr',
+                'solver': 'sag'},
                {'model': 'svc'},
                {'model': 'rf',
                 'criterion': 'entropy',
-                'max_depth': 50},
+                'max_depth': 35,
+                'n_estimators': 10},
                {'model': 'boosting',
                 'n_estimators': 10},
                {'model': 'bagging',
-                'base_estimator': tree.DecisionTreeClassifier(max_depth=30)}] #check this
+                'base_estimator': tree.DecisionTreeClassifier(max_depth=35)},
+               {'model': 'knn',
+                'n_neighbors': 10},
+               {'model': 'dummy',
+                'strategy': 'most_frequent'}]
+    classifiers = train_classifiers(models, training)
+    evaluate_classifiers(classifiers, models, testing)
 
-    classifiers = []
-    for i in range(len(training)):
-        print('loop {}'.format(i))
-        features = training[i].drop('fully_funded_60days', axis=1)
-        target = training[i].fully_funded_60days
-        classifiers.append(pl.generate_classifiers(features, target, models))
-
-    print(classifiers)
-
-    for i in range(len(testing)):
-        features = testing[i].drop('fully_funded_60days', axis=1)
-        y_actual = testing[i].fully_funded_60days
-        for j in range(len(models)):
-            table, fig = pl.evaluate_classifier(models[i][j], features, y_actual,
-                                                [0.5])
-            print(table)
-            fig.show()
-
-
-    return training, testing
 
 def transform_data(df):
     '''
@@ -140,6 +127,7 @@ def explore_data(df):
     print('{0} projects ({1:.1f}%) '.format(n_positive, p_positive) +
           'were funded within sixty days of posting.\n')
     print()
+
 
     per_teach_desc, per_teach_fig = pl.count_per_categorical(df, 'teacher_acctid')
     print(per_teach_desc)
@@ -220,6 +208,7 @@ def explore_data(df):
 
     print('----------------------\n| Outliers & missing data |\n----------------------')
     print(pl.report_n_missing(df))
+    plt.show()
 
 def preprocess_data(df):
     '''
@@ -246,7 +235,8 @@ def generate_features(df):
     Returns: pandas dataframe, the dataset after generating features
     '''
     df = df.drop(['school_longitude', 'school_latitude', 'schoolid',
-                  'teacher_acctid', 'school_district', 'school_ncesid'],
+                  'teacher_acctid', 'school_district', 'school_ncesid',
+                  'school_county'],
                   axis=1)
     
     numeric_cols = ['students_reached', 'total_price_including_optional_support']
@@ -255,19 +245,67 @@ def generate_features(df):
                                   labels=['dec' + str(i / 10) for i in range(10)])
 
     cat_cols = ['school_city', 'school_state', 'school_metro',
-                'school_county', 'teacher_prefix',
+                'teacher_prefix',
                 'primary_focus_subject', 'primary_focus_area',
                 'secondary_focus_subject', 'secondary_focus_area',
                 'resource_type',
                 'poverty_level', 'grade_level'] + numeric_cols
     df = pl.create_dummies(df, cat_cols)
 
-    df['fully_funded_60days'] = df.daystofullfunding <= 60
-    df = df.drop(['daystofullfunding', 'date_posted', 'datefullyfunded'], axis=1)
+    df['fully_funded_60days'] = df.daystofullfunding > 60
+    df = df.drop(['daystofullfunding', 'datefullyfunded'], axis=1)
     return df
+
+def train_classifiers(models, training):
+    '''
+    Returns a 2-D list that where where each inner list is a set of
+    classifiers and the outer list represents each training/test set (i.e.
+    at location 0,0 in the output list is the first model trained on the 
+    first set and at location 1,0 is the first model trained on the second
+    set).
+
+    Inputs:
+    models (dict): specifications for the classifiers
+    training (list of pandas dataframe): a list of training datasets
+
+    Returns: 2D list of trained sklearn classifiers
+    '''
+    classifiers = []
+    for i in range(len(training)):
+        print('----------\nBuilding with training set {}\n----------'.format(i + 1))
+        features = training[i].drop('fully_funded_60days', axis=1)
+        target = training[i].fully_funded_60days
+        classifiers.append(pl.generate_classifiers(features, target, models))
+
+    return classifiers
+
+def evaluate_classifiers(classifiers, models, testing):
+    '''
+    Prints out evaluations for the trained models using the specified testing
+    datasets
+
+    Inputs:
+    classifiers (2d list of trained sklearn classifier objects): trained
+        classifiers as output by train_models
+    models (dict): model specifications used to generate the classifiers
+    testing (list of pandas dataframes): the testing datasets associated with
+        each outer list in models
+    '''
+    for i in range(len(models)):
+        print('---------\n {} \n---------'.format(models[i]['model']))
+        table = pd.DataFrame()
+        for j in range(len(testing)):
+            features = testing[j].drop('fully_funded_60days', axis=1)
+            y_actual = testing[j].fully_funded_60days
+            table['Test/Training Set {}'.format(j + 1)], fig =\
+                pl.evaluate_classifier(classifiers[j][i], features, y_actual,\
+                [0.01, 0.02, 0.05, 0.10, 0.20, 0.30, 0.50], models[i]['model'],\
+                'Test/Training Set {}'.format(j + 1))
+            fig.show()
+        print(table)
+        plt.show()
 
 if __name__ == '__main__':
     usage = "python3 predict_funding.py <dataset> <parameters>"
     filepath = sys.argv[1]
     go(filepath)
-
