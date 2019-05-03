@@ -305,6 +305,6 @@ def evaluate_classifiers(classifiers, models, testing):
         plt.show()
 
 if __name__ == '__main__':
-    usage = "python3 predict_funding.py <dataset> <parameters>"
+    usage = "python3 predict_funding.py <dataset>"
     filepath = sys.argv[1]
     go(filepath)
