@@ -414,6 +414,25 @@ def generate_iter_model_specs(base_specs, iter_param, iter_vals):
     iter_param (str): the name of the parameter to iterate over
     iter_vals (list): the values of the iterative parameter to generate model
         specifications with
+
+    Currently supported model types:
+    'dt': sklearn.tree.DecisionTreeClassifier
+    'lr': sklearn.linear_model.LogisticRegression
+    'knn': sklearn.neighbors.KNeighborsClassifier
+    'svc': sklearn.svm.LinearSVC
+    'rf': sklearn.ensemble.RandomForestClassifier
+    'boosting': sklearn.ensemble.AdaBoostClassifier
+    'bagging': sklearn.ensemble.BaggingClassifier
+    'dummy': sklearn.dummy.DummyClassifier
+
+    Example usage:
+    generate_classifiers(x, y, {'model': 'dt', 'max_depth': 5})
+
+    The above line will generate a decision tree classifiers with a max depth of
+    5.
+
+    For more information on valid parameters to include in the dictionaries,
+    consult the sklearn documentation for each model.
     '''
     models = []
     for val in iter_vals:
