@@ -633,7 +633,7 @@ def graph_precision_recall(pred_probs, true_classes, resolution=33,
 
     return fig
 
-def create_temporal_splits(df, date_col, time_length, start_date=None): 
+def create_temporal_splits(df, date_col, time_length, gap=None, start_date=None): 
     '''
     Splits into different sets by time intervals.
 
@@ -643,7 +643,10 @@ def create_temporal_splits(df, date_col, time_length, start_date=None):
         attribute to split on
     time_length (dictionary): specifies the time length of each split, with
         strings of units of time (i.e. hours, days, months, years, etc.) as keys
-        and integer as values; for example 6 months would be {'months': 6}
+        and integers as values; for example 6 months would be {'months': 6}
+    gap (dictionary): optional length of time to leave between the end of the 
+        training set and the beginning of the test set, specified as a dictionary
+        with string units of time as keys and integers as values
     start_date (str): the first date to include in the splits; value should be
         in the form "yyyy-mm-dd"
 
@@ -651,6 +654,11 @@ def create_temporal_splits(df, date_col, time_length, start_date=None):
         test sets and the second of which contains training sets
     '''
     time_length = relativedelta.relativedelta(**time_length)
+    
+    if gap:
+        gap = relativedelta.relativedelta(**gap)
+    else:
+        gap = relativedelta.relativedelta()
     if start_date:
         start_date = pd.to_datetime(start_date, format='yyyy-mm-dd')
         df = df[df[date_col] > start_date]
@@ -661,13 +669,17 @@ def create_temporal_splits(df, date_col, time_length, start_date=None):
     max_date = max(df[date_col])
     i = 0
     while start_date + (i * time_length) < max_date:
-        lower_mask = (start_date + (i * time_length)) <= df[date_col]
-        upper_mask = df[date_col] < (start_date + ((i + 1) * time_length))
+        split_start = start_date + (i * time_length)
+        split_end = (start_date + ((i + 1) * time_length))
+        lower_mask = split_start <= df[date_col]
+        upper_mask = df[date_col] < split_end
         splits.append(df[lower_mask & upper_mask])
         i += 1
 
-    train_splits = splits[:1]
-    for i in range(1, len(splits) - 1):
-        train_splits.append(train_splits[i - 1].append(splits[i]))
+    train_splits = []
+    for i in range(0, len(splits) - 1):
+        split_end = start_date + ((i + 1) * time_length)
+        gap_mask = df[date_col] < (split_end - gap) #think about less than vs leq
+        train_splits.append(splits[i][gap_mask])
 
     return train_splits, splits[1:]
