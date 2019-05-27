@@ -7,6 +7,7 @@ Ben Fogarty
 '''
 
 import dateutil.relativedelta as relativedelta
+from copy import deepcopy
 from textwrap import wrap
 from sklearn import *
 import graphviz
@@ -319,6 +320,25 @@ def scale_variable_minmax(series, a=None, b=None):
 
     return (2 * series - (a + b)) / (a - b)
 
+def generate_n_occurences(series, addl_obs=None):
+    '''
+    Generates a new series where each instance is linked to the number of
+    observations that have the same value as that instance in the original
+    series.
+
+    Inputs:
+    series (pandas series): the original variable to generate the feature based
+        on
+    addl_obs (pandas series): additional observations to consider when counting the
+        number of occurences of each value; these observations are not included
+        in the output, and this column is indended to be used for observations 
+        from the training set when the series is from a test set
+    '''
+    val_counts = series.append(addl_obs, ignore_index=True)\
+                       .value_counts()
+
+    return series.map(val_counts)
+
 def create_time_diff(start_dates, end_dates):
     '''
     Calculates the time difference between two date columns.
@@ -378,7 +398,31 @@ def visualize_decision_tree(dt, feature_names, class_names, filepath='tree'):
     graph = graphviz.Source(dot_data)
     output_path = graph.render(filename=filepath, view=True)
 
-def generate_classifier(features, target, models):
+def generate_iter_model_specs(base_specs, iter_param, iter_vals):
+    '''
+    Produces a list of model specification dictionaries for use with 
+    generate_classifer) that iterates over different values for one parameter.
+
+    Inputs:
+    base_specs (dict): a dictionary specifying the base parameters of the
+        model that are not iterated over. Each dictionary must contain a "model" 
+        key with a value specifying the type of model to generate; currently 
+        supported types are listed below. All other entries in the dictionary
+        are optional and should have the key as the name of a parameter for the 
+        specified classifier and the value as the desired value of that 
+        parameter.
+    iter_param (str): the name of the parameter to iterate over
+    iter_vals (list): the values of the iterative parameter to generate model
+        specifications with
+    '''
+    models = []
+    for val in iter_vals:
+        model_specs = deepcopy(base_specs)
+        model_specs[iter_param] = val
+        models.append(model_specs)
+    return models
+
+def generate_classifier(features, target, model_specs):
     '''
     Generates a classifier to predict a target attribute (target)
     based on other attributes (features).
@@ -388,7 +432,7 @@ def generate_classifier(features, target, models):
         with; all columns must be numeric in type
     target (pandas series): Data for target attribute to build the classifier(s)
         with; should be categorical data in a numerical form
-    model (list of dicts): A dictionary specifying the classifier
+    model_specs (dicts): A dictionary specifying the classifier
         model to generate. Each dictionary must contain a "model" key with a
         value specifying the type of model to generate; currently supported
         types are listed below. All other entries in the dictionary are optional
