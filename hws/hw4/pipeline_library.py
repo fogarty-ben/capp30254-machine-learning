@@ -221,34 +221,88 @@ def find_outliers(df, excluded=None):
 
     return outliers
 
-def replace_missing(series):
+def identify_missing(series):
     '''
-    Replaces missing values in a series with the median value if the series is
-    numeric and with the modal value if the series is non-numeric.
+    Generates series specifying whether observation contains a missing value.
+    
+    Inputs:
+    sereis (pandas dataframe): the variable to identify missing in
+    
+    Returns: pandas series
+    '''
+    return series.isnull()
+
+def impute_missing(series, method=None, manual_val=None):
+    '''
+    Replaces missing values in a series with using the specified imputation
+    method. Currently supported imputation mentions include mean, median, mode,
+    and manual. If the imputation method is not specified for a given column,
+    median is used for numeric columns and mode is used for non-numeric columns.
 
     Inputs:
-    series (pandas series): the series to replace data in
+    series (pandas series): the series to impute missing data for
+    method (str): the imputation method; currently supported methods:
+        - 'mean': fill missing with the mean of the column (numeric series only)
+        - 'median': fill missing with the median of the column (numeric series
+                    only)
+        - 'mode': fill missing with the mode of the column
+        - 'manual': fill missing with a user-specified value
+    manual_val (single value, should match type of series): a user-specified
+        value to fill missing values with
 
-    Returns (pandas series)
+    Returns: pandas series
     '''
-    if pd.api.types.is_numeric_dtype(series):
+    if method is None and pd.api.types.is_numeric_dtype(series):
+        method = 'median'
+    elif method is None and not pd.api.types.is_numeric_dtype(series):
+        method = 'mode'
+    if manual_val is None:
+        manual_val = 'N/A'
+
+    if method == 'mean':
+        mean = np.mean(series)
+        return series.fillna(mean)
+    elif method == 'median':
         median = np.median(series.dropna())
         return series.fillna(median)
-    else:
+    elif method == 'mode':
         mode = series.mode().iloc[0]
         return series.fillna(mode)
+    elif method == 'manual':
+        return series.fillna(manual_val)
 
-def preprocess_data(df):
+def preprocess_data(df, methods=None, manual_vals=None):
     '''
-    Removes missing values, replacing them with the median value in numeric
-    columns and the modal value in non-numeric columns.
+    Removes missing values and adds columns to the dataframe to identify which
+    observations where missing certain variables. If the imputation method for
+    a column is not specified, median is used for numeric variables and mode is
+    used for non-numeric variables.
 
     Inputs:
     df (pandas dataframe): contains the data to preprocess
+    methods (dict): keys are column names and values the imputation method to
+        apply to that column; currently supported methods:
+        - 'mean': fill missing with the mean of the column (numeric series only)
+        - 'median': fill missing with the median of the column (numeric series
+                    only)
+        - 'mode': fill missing with the mode of the column
+        - 'manual': fill missing with a user-specified value
+    manual_vals (dict): keys are column names and values the values to fill
+        missing values with in columns with 'manual' imputation method
 
     Returns: pandas dataframe
     '''
-    return df.apply(replace_missing, axis=0)
+    if methods is None:
+        methods = {}
+    if manual_vals is None:
+        manual_vals = {}
+
+    missing = df.apply(identify_missing)\
+                .add_suffix('_missing')
+    df = df.apply(lambda x: impute_missing(x, method=methods.get(x.name, None),
+                                              manual_val=manual_vals.get(x.name, None)), 
+                    axis=0)
+    return pd.concat([df, missing], axis=1)
 
 def cut_variable(series, bins, labels=None, kwargs=None):
     '''
@@ -371,6 +425,29 @@ def report_n_missing(df):
     missing['% Missing'] = missing['# Missing'] / len(df) * 100
 
     return missing
+
+def select_k_best(features, target, k, score_func=None):
+    '''
+    Returns the (numeric) indices of the k features with the highest score. By
+    default, the scoring function is the ANOVA F-value between the target
+    variable and each feature.
+
+    Inputs:
+    features (pandas dataframe): data for all possible features to score
+    target (pandas series): data for target attribute to score features based on
+    score_func (callable): alternate scoring function to use; valid scoring
+        functions are defined in https://scikit-learn.org/stable/modules/
+        generated/sklearn.feature_selection.SelectKBest.html
+
+    Returns: numpy array of integers
+    '''
+    if score_func is None:
+        best_k = feature_selection.SelectKBest(k=k)
+    else:
+        best_k = feature_selection.SelectKBest(score_func=score_func, k=k)
+
+    best_k = best_k.fit(features, target)
+    return best_k.get_support(indices=True)
 
 def visualize_decision_tree(dt, feature_names, class_names, filepath='tree'):
     '''
