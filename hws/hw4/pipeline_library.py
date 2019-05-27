@@ -563,8 +563,6 @@ def evaluate_classifier(pred_probs, true_classes, thresholds, tie_breaker='rando
 
     Returns: tuple of pandas series and matplotlib figure
     '''
-    warnings.filterwarnings(action='ignore', 
-                            category=exceptions.UndefinedMetricWarning)
     index = [['Accuracy'] * len(thresholds) +['Precision'] * len(thresholds) + 
              ['Recall'] * len(thresholds) + ['F1'] * len(thresholds),
              thresholds * 4]
