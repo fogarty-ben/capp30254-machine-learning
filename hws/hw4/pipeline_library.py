@@ -299,6 +299,26 @@ def create_dummies(df, columns, kwargs=None):
 
     return pd.get_dummies(df, columns=columns, **kwargs)
 
+def scale_variable_minmax(series, a=None, b=None):
+    '''
+    Scales a variable according to the formula (2x - (a + b))/(a - b), 
+    where x is an observation from the dataset.
+    
+    If a is not specified, then the maximum value of the variable is a, and if b
+    is not specified, then the minimum value of the variable is b.
+
+    Inputs:
+    series (pandas series): the variable to scale; must be a numeric type series
+    a (numeric type): manual parameter for the scaling formula
+    b (numeric type): manual parameter for the scaling formula
+    '''
+    if a is None:
+        a = max(series)
+    if b is None:
+        b = min(series)
+
+    return (2 * series - (a + b)) / (a - b)
+
 def create_time_diff(start_dates, end_dates):
     '''
     Calculates the time difference between two date columns.
