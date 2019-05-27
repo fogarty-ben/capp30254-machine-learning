@@ -487,7 +487,12 @@ def generate_iter_model_specs(base_specs, iter_param, iter_vals):
         supported types are listed below. All other entries in the dictionary
         are optional and should have the key as the name of a parameter for the 
         specified classifier and the value as the desired value of that 
-        parameter.
+        parameter. Additionally, all models support the parameter 'k' and 'score_func'
+        which will select the k best features according to the score_func prior
+        to training the model. If 'k' is specified without 'score_func', then
+        the scoring function is the ANOVA F-value between the target
+        variable and each feature, but if 'score_func' is specified without 'k',
+        the this number of features is not limited.
     iter_param (str): the name of the parameter to iterate over
     iter_vals (list): the values of the iterative parameter to generate model
         specifications with
@@ -534,8 +539,15 @@ def generate_classifier(features, target, model_specs):
         types are listed below. All other entries in the dictionary are optional
         and should have the key as the name of a parameter for the specified
         classifier and the value as the desired value of that parameter.
+        Additionally, all models support the parameter 'k' and 'score_func'
+        which will select the k best features according to the score_func prior
+        to training the model. If 'k' is specified without 'score_func', then
+        the scoring function is the ANOVA F-value between the target
+        variable and each feature, but if 'score_func' is specified without 'k',
+        the this number of features is not limited.
 
-    Returns: list of trained classifier objects
+    Returns: tuple trained classifier objects and list of the integer indices
+        of the features used to train the model
 
     Currently supported model types:
     'dt': sklearn.tree.DecisionTreeClassifier
@@ -564,13 +576,23 @@ def generate_classifier(features, target, model_specs):
                    'boosting': ensemble.AdaBoostClassifier,
                    'bagging': ensemble.BaggingClassifier,
                    'dummy': dummy.DummyClassifier}
+    
+    limit_features = 'k' in model_specs
+    if limit_features and 'score_func' in model_specs:
+        selected_features = select_k_best(features, target, k, score_func=score_func)
+    elif 'k' in model_specs:
+        selected_features = select_k_best(features, target, k)
+    else:
+        selected_features = list(range(len(features.columns)))
+
 
     model_type = model_specs['model']
-    model_specs = {key: val for key, val in model_specs.items() if not key == 'model'}
+    model_specs = {key: val for key, val in model_specs.items()\
+                   if not key in ['model', 'k', 'score_func']}
     model = model_class[model_type](**model_specs)
-    model.fit(features, target)
+    model.fit(features[selected_features], target)
 
-    return model
+    return model, selected_features
 
 def predict_target_probability(model, features):
     '''
