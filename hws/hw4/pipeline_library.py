@@ -13,7 +13,9 @@ import graphviz
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
+import random
 import seaborn as sns
+import warnings
 
 def read_csv(filepath, cols=None, col_types=None, index_col=None):
     '''
@@ -410,26 +412,139 @@ def generate_classifier(features, target, models):
 
     return model
 
-def evaluate_classifier(model, features, target, thresholds, model_name,
-                        dataset_name):
+def predict_target_probability(model, features):
+    '''
+    Generates predicted probabilities of a binary target being positive
+    (represented as 1) based on a model.
+
+    model (trained sklearn classifier): the model to generate predicted
+        probabilities with
+    features (pandas dataframe): instances to generate predictied probabilities
+        for; structure of the data (columns and column types) must match the
+        data used to train the model
+
+    Returns: pandas series
+    '''
+    if isinstance(model, svm.LinearSVC):
+        pred_probs = model.decision_function(features)
+    else:
+        pred_probs = model.predict_proba(features)[:, 1]
+
+    return pd.Series(data=pred_probs, index=model.index)
+
+def predict_target_class(pred_probs, threshold, tie_breaker='random',
+                         true_classes=None, seed=None):
+    '''
+    Generates predicted probabilities of a binary target being positive
+    (represented as 1) based on a model.
+
+    pred_probs (pandas series): predicted probabilies of the target variable
+        being positive
+    threshold (float): the precentile of observations to predict as positive,
+        should be in the range [0.0, 1.0]
+    tie_breaker (str): how to break ties when predicting classes at the margin
+        when predicting classese; valid inputs are: 
+        - 'random': randomly selects which instances to predict as positive among
+                    those with the lowest probability meeting the specified
+                    threshold
+        - 'pessimistic': prioritizes selecting which instances with a true
+                         target value of negative to predict as positive among
+                         those with the lowest probability meeting the specified
+                         threshold, used for evaluation
+        - 'optimistic': prioritizes selecting instances with a true
+                         target value of positive to predict as positive among
+                         those with the lowest probability meeting the specified
+                         threshold, used for evaluation
+    true_classes (pandas series): the ground truth about whether the target
+        variable is positive
+    seed (int): optional seed to make results reproducable
+
+    Returns: pandas series
+    '''
+    assert tie_breaker in ['random', 'pessimistic', 'optimistic']
+    if not tie_breaker == 'random':
+        assert true_classes is not None
+
+    max_positives = int(np.floor(threshold * len(pred_probs)))
+    pred_classes = pred_probs >= np.quantile(pred_probs, 1 - threshold, 
+                                           interpolation='higher')
+    n_positives = np.sum(pred_classes)
+    excess_positives = n_positives - max_positives
+    if not excess_positives:
+        return pred_classes
+    
+    min_positive_prob = min(pred_probs[pred_classes])
+    if tie_breaker == 'random':
+        change_pred = pred_probs[pred_probs == min_positive_prob]\
+                                .sample(n=excess_positives, random_state=seed)\
+                                .index
+        pred_classes.loc[change_pred] = False
+        return pred_classes
+
+    if tie_breaker == 'pessimistic':
+        prioritize = ~true_classes.astype(bool)
+    elif tie_breaker == 'optimistic':
+        prioritize = true_classes.astype(bool)
+    change_pred = pred_probs[pred_probs == min_positive_prob]\
+                            [~prioritize]\
+                            .index
+    pred_classes.loc[change_pred] = False
+    n_positives = np.sum(pred_classes)
+    excess_positives = n_positives - max_positives
+
+    if not excess_positives:
+        return pred_classes
+    if excess_positives < 0:
+        change_pred = pred_probs[pred_probs == min_positive_prob]\
+                                [~prioritize]\
+                                .sample(n=-excess_positives, random_state=seed)\
+                                .index
+        pred_classes.loc[change_pred] = True
+    elif excess_positives > 0:
+        change_pred = pred_probs[pred_probs == min_positive_prob]\
+                                [prioritize]\
+                                .sample(n=excess_positives, random_state=seed)\
+                                .index
+        pred_classes.loc[change_pred] = False
+
+    return pred_classes
+
+def evaluate_classifier(pred_probs, true_classes, thresholds, tie_breaker='random',
+                        seed=None, model_name=None, dataset_name=None):
     '''
     Calculates a number of evaluation metrics (accuracy precision, recall, and
     F1 at different levels and AUC-ROC) and generates a graph of the
     precision-recall curve for a given model.
 
-    models (trained sklearn classifier): the model to evaluate
-    features (pandas dataframe): test data for the features in the
-        classifier; structure of the data (columns and column types) must
-        match the data used to train the classifier
-    target (pandas series): test data for the target attribute the classifier
-        predicts (i.e. the true class of each observation in the test data)
-    thresholds (list of ints): a list of different threshold levels to use when
-        calculating precision, recall and F1
-    model_name (str): the name of the model being evaluated
-    dataset_name (str): the name of the dataset being evaluated
-    
+    pred_probs (pandas series): predicted probabilies of the target variable
+        being positive
+    true_classes (pandas series): the ground truth about whether the target variable
+        is positive
+    thresholds (list of floats): different threshold levels to use when 
+        calculating precision, recall and F1, should be in range [0.0, 1.0]
+    tie_breaker (str): how to break ties when predicting classes at the margin
+        when predicting classese; valid inputs are: 
+        - 'random': random selects which instances to predict as positive among
+                    those with the lowest probability meeting the specified
+                    threshold
+        - 'pessimistic': prioritizing selecting which instances with a true
+                         target value of negative to predict as positive among
+                         those with the lowest probability meeting the specified
+                         threshold
+        - 'optimistic': prioritizing selecting instances with a true
+                         target value of positive to predict as positive among
+                         those with the lowest probability meeting the specified
+                         threshold
+    seed (int): optional seed to make results reproducable
+    model_name (str): optional model name to include in the title of the 
+        precision/recall curve graph
+    dataset_name (str): optional model name to include in the title of the
+        precision/recall curve graph
+
     Returns: tuple of pandas series and matplotlib figure
     '''
+    warnings.filterwarnings(action='ignore', 
+                            category=exceptions.UndefinedMetricWarning)
     index = [['Accuracy'] * len(thresholds) +['Precision'] * len(thresholds) + 
              ['Recall'] * len(thresholds) + ['F1'] * len(thresholds),
              thresholds * 4]
@@ -438,37 +553,85 @@ def evaluate_classifier(model, features, target, thresholds, model_name,
     index = pd.MultiIndex.from_tuples(index, names=['Metric', 'Threshold']) 
     evaluations = pd.Series(index=index)
 
-    if isinstance(model, svm.LinearSVC):
-        pred_score = model.decision_function(features)
-    else:
-        pred_score = model.predict_proba(features)[:, 1]
-
     for threshold in thresholds:
-        if isinstance(model, dummy.DummyClassifier):
-            pred_class = model.predict(features)
-        else:
-            pred_class = pred_score >= np.quantile(pred_score, 1 - threshold)
-        evaluations['Accuracy', threshold] = metrics.accuracy_score(target, pred_class)
-        evaluations['Precision', threshold] = metrics.precision_score(target, pred_class)
-        evaluations['Recall', threshold] = metrics.recall_score(target, pred_class)
-        evaluations['F1', threshold] = metrics.f1_score(target, pred_class)
+        pred_classes = predict_target_class(pred_probs, threshold, tie_breaker,
+                                            true_classes, seed)
+        evaluations['Accuracy', threshold] = metrics.accuracy_score(true_classes, pred_classes)
+        evaluations['Precision', threshold] = metrics.precision_score(true_classes, pred_classes)
+        evaluations['Recall', threshold] = metrics.recall_score(true_classes, pred_classes)
+        evaluations['F1', threshold] = metrics.f1_score(true_classes, pred_classes)
 
-    evaluations['AUC-ROC', None] = metrics.roc_auc_score(target, pred_score)
+    evaluations['AUC-ROC', None] = metrics.roc_auc_score(true_classes, pred_classes)
 
+    fig = graph_precision_recall(pred_probs, true_classes, tie_breaker=tie_breaker,
+                                 seed=seed, model_name=model_name,
+                                 dataset_name=dataset_name)
+
+    return evaluations, fig
+
+def graph_precision_recall(pred_probs, true_classes, resolution=33, 
+                           tie_breaker='random', seed=None, model_name=None,
+                           dataset_name=None):
+    '''
+    pred_probs (pandas series): predicted probabilies of the target variable
+        being positive
+    true_classes (pandas series): the ground truth about whether the target variable
+        is positive
+    resolution (list of ints): number of evenly-spaced threshold levels to plot
+        recall and precision at
+    tie_breaker (str): how to break ties when predicting classes at the margin
+        when predicting classese; valid inputs are: 
+        - 'random': random selects which instances to predict as positive among
+                    those with the lowest probability meeting the specified
+                    threshold
+        - 'pessimistic': prioritizing selecting which instances with a true
+                         target value of negative to predict as positive among
+                         those with the lowest probability meeting the specified
+                         threshold
+        - 'optimistic': prioritizing selecting instances with a true
+                         target value of positive to predict as positive among
+                         those with the lowest probability meeting the specified
+                         threshold
+    seed (int): optional seed to set for use with random tiebreaking
+    model_name (str): optional model name to include in the title of the 
+        precision/recall curve graph
+    dataset_name (str): optional model name to include in the title of the
+        precision/recall curve graph
+    
+    Returns: tuple of pandas series and matplotlib figure
+    '''
+    if not seed:
+        seed = random.randrange(0, 2147483647) #must set some seed for
+        #graph to make sense, given repeated calls to predict_target_class
     sns.set()
     fig, ax = plt.subplots()
-    precision, recall, thresholds = metrics.precision_recall_curve(target, pred_score)
-    sns.lineplot(recall, precision, drawstyle='steps-post', ax=ax)
+    thresholds = np.linspace(0, 1, num=resolution)
+    precision = []
+    recall = []
+    for threshold in thresholds:
+        pred_classes = predict_target_class(pred_probs, threshold, tie_breaker,
+                                              true_classes, seed)
+        precision.append(metrics.precision_score(true_classes, pred_classes))
+        recall.append(metrics.recall_score(true_classes, pred_classes))
+    precision_recall_curves = pd.DataFrame
+    sns.lineplot(thresholds, precision, drawstyle='steps-pre', ax=ax, label='Precision')
+    sns.lineplot(thresholds, recall, drawstyle='steps-pre', ax=ax, label='Recall')
 
-    ax.fill_between(recall, precision, alpha=0.2, step='pre')
     ax.set_xlabel('Recall')
     ax.set_ylabel('Precision')
     ax.set_xlim([0.0, 1.0])
     ax.set_ylim([0.0, 1.01])
-    fig.suptitle('Precision-Recall Curve: {}, {}'.format(model_name, dataset_name))
 
+    if model_name and dataset_name:
+        fig.suptitle('Precision-Recall Curves: {}, {}'.format(model_name, dataset_name))
+    elif model_name:
+        fig.suptitle('Precision-Recall Curves: {}'.format(model_name))
+    elif dataset_name:
+        fig.suptitle('Precision-Recall Curves: {}'.format(dataset_name))
+    else:
+        fig.suptitle('Precision-Recall Curves')
 
-    return evaluations, fig
+    return fig
 
 def create_temporal_splits(df, date_col, time_length, start_date=None): 
     '''
