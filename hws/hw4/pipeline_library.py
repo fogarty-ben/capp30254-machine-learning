@@ -3,7 +3,7 @@ Machine Learning Pipeline
 
 Ben Fogarty
 
-2 May 2019
+30 May 2019
 '''
 
 import dateutil.relativedelta as relativedelta
@@ -356,9 +356,9 @@ def visualize_decision_tree(dt, feature_names, class_names, filepath='tree'):
     graph = graphviz.Source(dot_data)
     output_path = graph.render(filename=filepath, view=True)
 
-def generate_classifiers(features, target, models):
+def generate_classifier(features, target, models):
     '''
-    Generates one or more classifiers to predict a target attribute (target)
+    Generates a classifier to predict a target attribute (target)
     based on other attributes (features).
 
     Inputs:
@@ -366,8 +366,8 @@ def generate_classifiers(features, target, models):
         with; all columns must be numeric in type
     target (pandas series): Data for target attribute to build the classifier(s)
         with; should be categorical data in a numerical form
-    models (list of dicts): A list of dictionaries specifying the classifier
-        models to generate. Each dictionary must contain a "model" key with a
+    model (list of dicts): A dictionary specifying the classifier
+        model to generate. Each dictionary must contain a "model" key with a
         value specifying the type of model to generate; currently supported
         types are listed below. All other entries in the dictionary are optional
         and should have the key as the name of a parameter for the specified
@@ -386,12 +386,10 @@ def generate_classifiers(features, target, models):
     'dummy': sklearn.dummy.DummyClassifier
 
     Example usage:
-    generate_classifiers(x, y, [{'model': 'dt', 'max_depth': 5}, 
-                                {'model': 'knn', 'n_neighbors': 10}])
+    generate_classifiers(x, y, {'model': 'dt', 'max_depth': 5})
 
-    The above line will generate two classifiers, the first of which is a 
-    decision tree classifier with a max depth of 5, and the second of which is a
-    k nearest neighbors model with k=10.
+    The above line will generate a decision tree classifiers with a max depth of
+    5.
 
     For more information on valid parameters to include in the dictionaries,
     consult the sklearn documentation for each model.
@@ -405,16 +403,12 @@ def generate_classifiers(features, target, models):
                    'bagging': ensemble.BaggingClassifier,
                    'dummy': dummy.DummyClassifier}
 
-    classifiers = []
+    model_type = model_specs['model']
+    model_specs = {key: val for key, val in model_specs.items() if not key == 'model'}
+    model = model_class[model_type](**model_specs)
+    model.fit(features, target)
 
-    for model_specs in models:
-        model_type = model_specs['model']
-        model_specs = {key: val for key, val in model_specs.items() if not key == 'model'}
-        model = model_class[model_type](**model_specs)
-        model.fit(features, target)
-        classifiers.append(model)
-
-    return classifiers
+    return model
 
 def evaluate_classifier(model, features, target, thresholds, model_name,
                         dataset_name):
