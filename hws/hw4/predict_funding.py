@@ -6,6 +6,8 @@ Ben Fogarty
 2 May 2019
 '''
 
+import argparse
+import json
 import sys
 from sklearn import tree
 import numpy as np
@@ -13,7 +15,7 @@ import pandas as pd
 import pipeline_library as pl
 import matplotlib.pyplot as plt
 
-def apply_pipeline(file, seed=None):
+def apply_pipeline(file, features_dict, models, seed=None):
     '''
     Applies the pipeline library to predicting if a project on Donors Choose
     will not get full funding within 60 days.
@@ -62,26 +64,6 @@ def apply_pipeline(file, seed=None):
 
         training_splits[i], testing_splits[i] = generate_features(training_splits[i],
                                                                   testing_splits[i])
-    
-    models = [{'model': 'dt',
-               'criterion': 'entropy',
-               'max_depth': 35},
-               {'model': 'lr',
-                'solver': 'sag'},
-               {'model': 'svc'},
-               {'model': 'rf',
-                'criterion': 'entropy',
-                'max_depth': 35,
-                'n_estimators': 10},
-               {'model': 'boosting',
-                'n_estimators': 10},
-               {'model': 'bagging',
-                'base_estimator': tree.DecisionTreeClassifier(max_depth=35)},
-               {'model': 'knn',
-                'n_neighbors': 10},
-               {'model': 'dummy',
-                'strategy': 'most_frequent'}]
-
     for model in models:
         print('-' * 20 +  '\nModel Specifications\n' + str(model) + '\n' + '_' * 20)
         model_name = model.get('name', None)
@@ -229,12 +211,13 @@ def preprocess_data(df):
     methods = {'secondary_focus_area': 'manual',
                'secondary_focus_subject': 'manual'}
     manual_vals = {'secondary_focus_area': 'N/A',
-                     'secondary_focus_subject': 'N/A'}
+                   'secondary_focus_subject': 'N/A'}
     df = pl.preprocess_data(df, methods=methods, manual_vals=manual_vals)
 
     return df
 
-def generate_features(training, testing):
+def generate_features(training, testing, n_ocurr_cols, scale_cols, bin_cols,
+                      cat_cols,binary_cut_cols, drop_cols):
     '''
     Generates categorical, binary, and scaled features. While features are
     generate for the training data independent of the testing data, features
@@ -254,14 +237,11 @@ def generate_features(training, testing):
                   'school_county'],
                   axis=1)
     '''
-    n_ocurr_cols = ['schoolid', 'teacher_acctid', 'school_district',
-                    'school_county']
     for col in n_ocurr_cols:
         training.loc[:, str(col) + '_n_occur'] = pl.generate_n_occurences(training[col])
         testing.loc[:, str(col) + '_n_occur'] = pl.generate_n_occurences(testing[col],
                                                              addl_obs=training[col])
 
-    scale_cols = ['students_reached', 'total_price_including_optional_support']
     scale_cols = scale_cols + [col + '_n_occur' for col in n_ocurr_cols]
     for col in scale_cols:
         max_training = max(training[col])
@@ -380,6 +360,58 @@ def evaluate_classifiers(pred_probs, testing_splits, seed=None, model_name=None)
     plt.show()
 
 if __name__ == '__main__':
-    usage = "python3 predict_funding.py <dataset>"
-    filepath = sys.argv[1]
-    apply_pipeline(filepath)
+    parser = argparse.ArgumentParser(description=("Apply machine learning" +
+        "pipeline to Donors' Choose Data"))
+    parser.add_argument('dataset filepath', type=str, dest='dataset',
+                        help="Path to the Donors' Choose dataset")
+    args = parser.parse_args()
+
+    models = [{'model': 'dt',
+               'criterion': 'entropy',
+               'max_depth': 35},
+              {'model': 'lr',
+               'solver': 'sag'},
+              {'model': 'svc'},
+              {'model': 'rf',
+               'criterion': 'entropy',
+               'max_depth': 35,
+               'n_estimators': 10},
+              {'model': 'boosting',
+               'n_estimators': 10},
+              {'model': 'bagging',
+               'base_estimator': tree.DecisionTreeClassifier(max_depth=35)},
+              {'model': 'knn',
+               'n_neighbors': 10},
+              {'model': 'dummy',
+               'strategy': 'most_frequent'}]
+
+    feature_args = {'n_ocurr_cols': ['schoolid', 'teacher_acctid',
+                                     'school_district', 'school_county'],
+                    'scale_cols': ['students_reached', 
+                                   'total_price_including_optional_support',
+                                   'schoolid_n_occur', 'teacher_acctid_n_occur',
+                                   'school_district_n_occur',
+                                   'school_county_n_occur'],
+                    'bin_cols': {},
+                    'cat_cols': ['school_city', 'school_state', 'school_metro',
+                                 'teacher_prefix', 'primary_focus_subject',
+                                 'primary_focus_area', 'secondary_focus_subject',
+                                 'secondary_focus_area', 'resource_type',
+                                 'poverty_level', 'grade_level'],
+                    'binary_cut_cols': {'daystofullfunding', {'threshold': 60}},
+                    'drop_cols': ['school_longitude', 'school_latitude',
+                                  'schoolid', 'teacher_acctid',
+                                  'school_district', 'school_ncesid',
+                                  'school_county', 'daystofullfunding',
+                                  'datefullyfunded','date_posted',
+                                  'school_longitude_missing',
+                                  'school_latitude_missing',
+                                  'schoolncesid_missing',
+                                  'daystofullfunding_missing',
+                                  'datefullyfunded_missing',
+                                  'date_posted_missing']}
+
+    preprocessing_args = {}
+
+
+    apply_pipeline(args.dataset)
