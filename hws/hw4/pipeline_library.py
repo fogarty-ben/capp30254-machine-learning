@@ -556,7 +556,9 @@ def generate_classifier(features, target, model_specs):
     model_specs (dicts): A dictionary specifying the classifier
         model to generate. Each dictionary must contain a "model" key with a
         value specifying the type of model to generate; currently supported
-        types are listed below. All other entries in the dictionary are optional
+        types are listed below. Optionally, a "name" key can be specified to
+        help identify the model, however, this key will not be used in this
+        function. All other entries in the dictionary are optional
         and should have the key as the name of a parameter for the specified
         classifier and the value as the desired value of that parameter.
 
@@ -593,7 +595,7 @@ def generate_classifier(features, target, model_specs):
 
     model_type = model_specs['model']
     model_specs = {key: val for key, val in model_specs.items()\
-                   if not key == 'model'}
+                   if not key in ['model', 'name']}
     model = model_class[model_type](**model_specs)
     model.fit(features, target)
 
