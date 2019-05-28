@@ -304,6 +304,25 @@ def preprocess_data(df, methods=None, manual_vals=None):
                     axis=0)
     return pd.concat([df, missing], axis=1)
 
+def cut_binary(series, threshold, or_equal_to=False):
+    '''
+    Cuts a continuous variable into a binary variable based on whether or not
+    each observation is above (True) or below (False) some threshold.
+
+    series (pandas series): the variable to cut
+    threshold (numeric type): observations are marked as true if above this
+        threshold and false if below this threshold
+    or_equal_to (bool): if false, observations equal to the threshold are marked
+        as fasle; if true, observations equal to the threshold are marked as
+        true
+
+    Returns: pandas series
+    '''
+    if or_equal_to:
+        return  series >= threshold
+    else:
+        return series > threshold
+        
 def cut_variable(series, bins, labels=None, kwargs=None):
     '''
     Discretizes a continuous variable into bins. Bins are half-closed, [a, b).
@@ -322,13 +341,14 @@ def cut_variable(series, bins, labels=None, kwargs=None):
         length as the number of bins specified
     kwargs (dictionary): keyword arguments to pass to either pd.cut or pd.qcut
 
-    Return: pandas series
+    Return: tuple of pandas series and numpy array of bin edges
     '''
     if not kwargs:
         kwargs = {}
 
     if isinstance(bins, int):
-        return pd.qcut(series, bins, labels=labels, duplicates='drop', **kwargs)\
+        return pd.qcut(series, bins, labels=labels, duplicates='drop', 
+                       retbins=True, **kwargs)\
                  .astype('category')
 
     return pd.cut(series, bins, labels=labels, include_lowest=True, **kwargs)\
