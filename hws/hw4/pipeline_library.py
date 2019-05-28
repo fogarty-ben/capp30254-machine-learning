@@ -322,7 +322,7 @@ def cut_binary(series, threshold, or_equal_to=False):
         return  series >= threshold
     else:
         return series > threshold
-        
+
 def cut_variable(series, bins, labels=None, kwargs=None):
     '''
     Discretizes a continuous variable into bins. Bins are half-closed, [a, b).
@@ -354,7 +354,7 @@ def cut_variable(series, bins, labels=None, kwargs=None):
     return pd.cut(series, bins, labels=labels, include_lowest=True, **kwargs)\
              .astype('category')
 
-def create_dummies(df, columns, kwargs=None):
+def create_dummies(df, column, values=None):
     '''
     Transforms variables into a set of dummy variables.
 
@@ -362,17 +362,22 @@ def create_dummies(df, columns, kwargs=None):
     df (pandas dataframe/series): the data to transform dummies in;
         all columns not being converted to dummies must be numeric
         types
-    columns (list of strs): column names containing categorical
-        variables to convert to dummy variables
-    kwargs (dict): optional keyword arguments to pass to pd.get_dummies
+    columns (list of strs): column name containing categorical
+        variable to convert to dummy variables
+    values (list of values): values in the specified column to create dummies
+        for; by default, a column is made for all values
 
     Returns: pandas dataframe where the columns to be converted is replaced with
         columns containing dummy variables
     '''
-    if not kwargs:
-        kwargs = {}
+    if values is None:
+        values = list(df[column].value_counts().index)
+    for value in values:
+        df[column + '_' + value] = df[column] == value
 
-    return pd.get_dummies(df, columns=columns, **kwargs)
+    df = df.drop(column, axis=1)
+
+    return df
 
 def scale_variable_minmax(series, a=None, b=None):
     '''
@@ -507,12 +512,7 @@ def generate_iter_model_specs(base_specs, iter_param, iter_vals):
         supported types are listed below. All other entries in the dictionary
         are optional and should have the key as the name of a parameter for the 
         specified classifier and the value as the desired value of that 
-        parameter. Additionally, all models support the parameter 'k' and 'score_func'
-        which will select the k best features according to the score_func prior
-        to training the model. If 'k' is specified without 'score_func', then
-        the scoring function is the ANOVA F-value between the target
-        variable and each feature, but if 'score_func' is specified without 'k',
-        the this number of features is not limited.
+        parameter.
     iter_param (str): the name of the parameter to iterate over
     iter_vals (list): the values of the iterative parameter to generate model
         specifications with
@@ -559,12 +559,6 @@ def generate_classifier(features, target, model_specs):
         types are listed below. All other entries in the dictionary are optional
         and should have the key as the name of a parameter for the specified
         classifier and the value as the desired value of that parameter.
-        Additionally, all models support the parameter 'k' and 'score_func'
-        which will select the k best features according to the score_func prior
-        to training the model. If 'k' is specified without 'score_func', then
-        the scoring function is the ANOVA F-value between the target
-        variable and each feature, but if 'score_func' is specified without 'k',
-        the this number of features is not limited.
 
     Returns: tuple trained classifier objects and list of the integer indices
         of the features used to train the model
@@ -596,23 +590,14 @@ def generate_classifier(features, target, model_specs):
                    'boosting': ensemble.AdaBoostClassifier,
                    'bagging': ensemble.BaggingClassifier,
                    'dummy': dummy.DummyClassifier}
-    
-    limit_features = 'k' in model_specs
-    if limit_features and 'score_func' in model_specs:
-        selected_features = select_k_best(features, target, k, score_func=score_func)
-    elif 'k' in model_specs:
-        selected_features = select_k_best(features, target, k)
-    else:
-        selected_features = list(range(len(features.columns)))
-
 
     model_type = model_specs['model']
     model_specs = {key: val for key, val in model_specs.items()\
-                   if not key in ['model', 'k', 'score_func']}
+                   if not key == 'model'}
     model = model_class[model_type](**model_specs)
-    model.fit(features[selected_features], target)
+    model.fit(features, target)
 
-    return model, selected_features
+    return model
 
 def predict_target_probability(model, features):
     '''
@@ -632,7 +617,7 @@ def predict_target_probability(model, features):
     else:
         pred_probs = model.predict_proba(features)[:, 1]
 
-    return pd.Series(data=pred_probs, index=model.index)
+    return pd.Series(data=pred_probs, index=features.index)
 
 def predict_target_class(pred_probs, threshold, tie_breaker='random',
                          true_classes=None, seed=None):
@@ -805,7 +790,7 @@ def graph_precision_recall(pred_probs, true_classes, resolution=33,
         #graph to make sense, given repeated calls to predict_target_class
     sns.set()
     fig, ax = plt.subplots()
-    thresholds = np.linspace(0, 1, num=resolution)
+    thresholds = np.linspace(0.01, 1, num=resolution)
     precision = []
     recall = []
     for threshold in thresholds:
