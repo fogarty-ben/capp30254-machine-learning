@@ -50,19 +50,15 @@ def apply_pipeline(file):
     df = pl.read_csv(file, col_types=col_types, index_col='projectid')
     df = transform_data(df)
 
-    explore_data(df)
-    training, testing = pl.create_temporal_splits(df, 'date_posted', {'months': 6},
-                                                  gap={'days': 60})
+    #explore_data(df)
+    training_splits, testing_splits = pl.create_temporal_splits(df, 
+                                      'date_posted', {'months': 6}, gap={'days': 60})
+    for i in range(len(training_splits)):
+        training_splits[i] = preprocess_data(training_splits[i])
+        testing_splits[i] = preprocess_data(testing_splits[i])
 
-    for i in range(len(training)):
-        training[i] = preprocess_data(training[i])
-        testing[i] = preprocess_data(testing[i])
-
-        training[i], testing[i] = generate_features(training[i], testing[i])
-
-    for i in range(len(training)):
-        training[i] = training[i].drop('date_posted', axis=1)
-        testing[i] = testing[i].drop('date_posted', axis=1)
+        training_splits[i], testing_splits[i] = generate_features(training_splits[i],
+                                                                  testing_splits[i])
     
     models = [{'model': 'dt',
                'criterion': 'entropy',
@@ -82,8 +78,12 @@ def apply_pipeline(file):
                 'n_neighbors': 10},
                {'model': 'dummy',
                 'strategy': 'most_frequent'}]
-    classifiers = train_classifiers(models, training)
-    evaluate_classifiers(classifiers, models, testing)
+
+    for model in models:
+        print('-' * 20 +  '\nModel Specifications\n' + str(model) + '\n' + '_' * 20)
+        trained_classifiers = train_classifiers(model, training_splits)
+        pred_probs = predict_probs(trained_classifiers, testing_splits)
+        evaluate_classifiers(pred_probs, testing_splits)
 
 
 def transform_data(df):
@@ -222,9 +222,11 @@ def preprocess_data(df):
 
     Returns: pandas dataframe
     '''
-    df['secondary_focus_area'] = df.secondary_focus_area.fillna('N/A')
-    df['secondary_focus_subject'] = df.secondary_focus_subject.fillna('N/A')
-    df = pl.preprocess_data(df)
+    methods = {'secondary_focus_area': 'manual',
+               'secondary_focus_subject': 'manual'}
+    manual_vals = {'secondary_focus_area': 'N/A',
+                     'secondary_focus_subject': 'N/A'}
+    df = pl.preprocess_data(df, methods=methods, manual_vals=manual_vals)
 
     return df
 
@@ -242,29 +244,63 @@ def generate_features(training, testing):
     Returns: tuple of pandas dataframe, the training and testing datasets after
         generating the features
     '''
+    '''
     df = df.drop(['school_longitude', 'school_latitude', 'schoolid',
                   'teacher_acctid', 'school_district', 'school_ncesid',
                   'school_county'],
                   axis=1)
-    
-    numeric_cols = ['students_reached', 'total_price_including_optional_support']
-    for col in numeric_cols:
-        df[col] = pl.cut_variable(df[col], 10, 
-                                  labels=['dec' + str(i / 10) for i in range(10)])
+    '''
+    n_ocurr_cols = ['schoolid', 'teacher_acctid', 'school_district',
+                    'school_county']
+    for col in n_ocurr_cols:
+        training.loc[:, str(col) + '_n_occur'] = pl.generate_n_occurences(training[col])
+        testing.loc[:, str(col) + '_n_occur'] = pl.generate_n_occurences(testing[col],
+                                                             addl_obs=training[col])
+
+    scale_cols = ['students_reached', 'total_price_including_optional_support']
+    scale_cols = scale_cols + [col + '_n_occur' for col in n_ocurr_cols]
+    for col in scale_cols:
+        max_training = max(training[col])
+        min_training = min(training[col])
+        training.loc[:, col] = pl.scale_variable_minmax(training[col])
+        testing.loc[:, col] = pl.scale_variable_minmax(testing[col], a=max_training,
+                                                b=min_training)
+
+    bin_cols = []
+    for col in bin_cols:
+        training.loc[:, col], bin_edges = pl.cut_variable(training[col], n_quantlies)
+        bin_edges[0] = - float('inf') #test observations below the lowest observation
+        #in the training set should be mapped to the lowest bin
+        bin_edges[-1] = float('inf') #test observations above the highest observation
+        #in the training set should be mapped to the highest bin
+        testing[col], _ = pl.cut_variable(testing[col], bin_edges)
+
 
     cat_cols = ['school_city', 'school_state', 'school_metro',
                 'teacher_prefix',
                 'primary_focus_subject', 'primary_focus_area',
                 'secondary_focus_subject', 'secondary_focus_area',
                 'resource_type',
-                'poverty_level', 'grade_level'] + numeric_cols
-    df = pl.create_dummies(df, cat_cols)
+                'poverty_level', 'grade_level'] + bin_cols
+    for col in cat_cols:
+        values = list(training[col].value_counts().index)
+        training = pl.create_dummies(training, col, values=values)
+        testing = pl.create_dummies(testing, col, values=values)
 
-    df['fully_funded_60days'] = df.daystofullfunding > 60
-    df = df.drop(['daystofullfunding', 'datefullyfunded'], axis=1)
-    return df
+    training['fully_funded_60days'] = pl.cut_binary(training.daystofullfunding, 60)
+    testing['fully_funded_60days'] = pl.cut_binary(testing.daystofullfunding, 60)
 
-def train_classifiers(models, training):
+    drop_cols = ['school_longitude', 'school_latitude', 'schoolid',
+                  'teacher_acctid', 'school_district', 'school_ncesid',
+                  'school_county', 'daystofullfunding', 'datefullyfunded',
+                  'date_posted']
+    drop_cols = drop_cols + [str(col) + '_missing' for col in drop_cols]
+    training = training.drop(drop_cols, axis=1)
+    testing = testing.drop(drop_cols, axis=1)
+    
+    return training, testing
+
+def train_classifiers(model, training):
     '''
     Returns a 2-D list that where where each inner list is a set of
     classifiers and the outer list represents each training/test set (i.e.
@@ -280,16 +316,38 @@ def train_classifiers(models, training):
     '''
     classifiers = []
     for i in range(len(training)):
-        print('----------\nBuilding with training set {}\n----------'.format(i + 1))
+        print('Building with training set {}'.format(i + 1))
         features = training[i].drop('fully_funded_60days', axis=1)
         target = training[i].fully_funded_60days
-        classifiers.append(pl.generate_classifiers(features, target, models))
+        classifiers.append(pl.generate_classifier(features, target, model))
 
     return classifiers
 
-def evaluate_classifiers(classifiers, models, testing):
+def predict_probs(trained_classifiers, testing_splits):
     '''
-    Prints out evaluations for the trained models using the specified testing
+    Generates predictions for the observations in the i-th training split based
+    on the i-th trained classifier.
+
+    Inputs:
+    trained_classifiers (list of sklearn classifers): the i-th model should have
+        been trained on the i-th sklearn training split
+    testing_splits (list of pandas dataframe): the i-th testing split should be
+        associated with the i-th training split
+
+    Returns: list of pandas series
+    '''
+    pred_probs = []
+    for i in range(len(trained_classifiers)):
+        print('Predicting probabilies with training set {}'.format(i+1))
+        features = testing_splits[i].drop('fully_funded_60days', axis=1)
+        pred_probs.append(pl.predict_target_probability(trained_classifiers[i],
+                                                        features))
+
+    return pred_probs
+
+def evaluate_classifiers(pred_probs, testing_splits):
+    '''
+    Prints out evaluations for the trained model using the specified testing
     datasets
 
     Inputs:
@@ -299,19 +357,16 @@ def evaluate_classifiers(classifiers, models, testing):
     testing (list of pandas dataframes): the testing datasets associated with
         each outer list in models
     '''
-    for i in range(len(models)):
-        print('---------\n {} \n---------'.format(models[i]['model']))
+    for i in range(len(pred_probs)):
+        print('Evaluating predictions with training set {}'.format(i+1))
         table = pd.DataFrame()
-        for j in range(len(testing)):
-            features = testing[j].drop('fully_funded_60days', axis=1)
-            y_actual = testing[j].fully_funded_60days
-            table['Test/Training Set {}'.format(j + 1)], fig =\
-                pl.evaluate_classifier(classifiers[j][i], features, y_actual,\
-                [0.01, 0.02, 0.05, 0.10, 0.20, 0.30, 0.50], models[i]['model'],\
-                'Test/Training Set {}'.format(j + 1))
-            fig.show()
-        print(table)
-        plt.show()
+        y_actual = testing_splits[i].fully_funded_60days
+        table['Test/Training Set {}'.format(i + 1)], fig =\
+            pl.evaluate_classifier(pred_probs[i], y_actual,\
+            [0.01, 0.02, 0.05, 0.10, 0.20, 0.30, 0.50])
+        fig.show()
+    print(table)
+    plt.show()
 
 if __name__ == '__main__':
     usage = "python3 predict_funding.py <dataset>"
