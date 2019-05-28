@@ -13,7 +13,7 @@ import pandas as pd
 import pipeline_library as pl
 import matplotlib.pyplot as plt
 
-def go(file):
+def apply_pipeline(file):
     '''
     Applies the pipeline library to predicting if a project on Donors Choose
     will not get full funding within 60 days.
@@ -51,10 +51,14 @@ def go(file):
     df = transform_data(df)
 
     explore_data(df)
-    df = preprocess_data(df)
-    df = generate_features(df)
-    training, testing = pl.create_temporal_splits(df, 'date_posted', {'months': 6})
-    del(df) #full df no longer needed after splits
+    training, testing = pl.create_temporal_splits(df, 'date_posted', {'months': 6},
+                                                  gap={'days': 60})
+
+    for i in range(len(training)):
+        training[i] = preprocess_data(training[i])
+        testing[i] = preprocess_data(testing[i])
+
+        training[i], testing[i] = generate_features(training[i], testing[i])
 
     for i in range(len(training)):
         training[i] = training[i].drop('date_posted', axis=1)
@@ -224,14 +228,19 @@ def preprocess_data(df):
 
     return df
 
-def generate_features(df):
+def generate_features(training, testing):
     '''
-    Generates categorical and binary features.
+    Generates categorical, binary, and scaled features. While features are
+    generate for the training data independent of the testing data, features
+    for the testing data sometimes require ranges or other information about the
+    properties of features created for the training data to ensure consistency.
 
     Inputs:
-    df (pandas dataframe): the dataframe
+    training (pandas dataframe): the training data
+    testing (pandas dataframe): the testing data
 
-    Returns: pandas dataframe, the dataset after generating features
+    Returns: tuple of pandas dataframe, the training and testing datasets after
+        generating the features
     '''
     df = df.drop(['school_longitude', 'school_latitude', 'schoolid',
                   'teacher_acctid', 'school_district', 'school_ncesid',
@@ -307,4 +316,4 @@ def evaluate_classifiers(classifiers, models, testing):
 if __name__ == '__main__':
     usage = "python3 predict_funding.py <dataset>"
     filepath = sys.argv[1]
-    go(filepath)
+    apply_pipeline(filepath)
