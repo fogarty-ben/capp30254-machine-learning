@@ -15,7 +15,7 @@ import pandas as pd
 import pipeline_library as pl
 import matplotlib.pyplot as plt
 
-def apply_pipeline(file, features_dict, models, seed=None):
+def apply_pipeline(dataset, preprocessing, features, models, seed=None):
     '''
     Applies the pipeline library to predicting if a project on Donors Choose
     will not get full funding within 60 days.
@@ -359,13 +359,53 @@ def evaluate_classifiers(pred_probs, testing_splits, seed=None, model_name=None)
     print(table)
     plt.show()
 
+def parse_args(args):
+    '''
+    Parses command line arguments for use by the rest of the software
+
+    Inputs:
+    args (argsparse Namespace): arguments from the command line
+
+    Returns: 5-ple of filepath to dataset (str), pre-procesing specs (dict),
+    feature generation specs (dict), model specs (list of dicts), seed (int)
+    '''
+    print(args)
+    dataset_fp = args.dataset
+
+    if args.preprocess is not None:
+        with open(args.preprocess, 'r') as file:
+            preprocess_specs = json.load(file)
+    else:
+        preprocess_specs = {}
+
+    with open(args.features, 'r') as file:
+        feature_specs = json.load(file)
+
+    with open(args.models, 'r') as file:
+        model_specs = json.load(file)
+
+    seed = args.seed
+
+    return dataset_fp, preprocess_specs, feature_specs, model_specs, seed
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=("Apply machine learning" +
         "pipeline to Donors' Choose Data"))
-    parser.add_argument('dataset filepath', type=str, dest='dataset',
+    parser.add_argument('-d', '--data', type=str, dest='dataset', required=True,
                         help="Path to the Donors' Choose dataset")
+    parser.add_argument('-f', '--features', type=str, dest='features',
+                        required=True, help="Path to the features config JSON")
+    parser.add_argument('-m', '--models', type=str, dest='models',
+                        required=True, help="Path to the model specs JSON")
+    parser.add_argument('-p', '--preprocess', type=str, dest='preprocess',
+                        required=False, help="Path to the preprocessing config JSON")
+    parser.add_argument('-s', '--seed', type=float, dest='seed', required=False,
+                        help='Random seed for tiebreaking when predicting classes')
     args = parser.parse_args()
-
+    
+    data, preprocess, features, models, seed = parse_args(args)
+    apply_pipeline(data, preprocess, features, models, seed)
+    '''
     models = [{'model': 'dt',
                'criterion': 'entropy',
                'max_depth': 35},
@@ -412,6 +452,4 @@ if __name__ == '__main__':
                                   'date_posted_missing']}
 
     preprocessing_args = {}
-
-
-    apply_pipeline(args.dataset)
+    '''
