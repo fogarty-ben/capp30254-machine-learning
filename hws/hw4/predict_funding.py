@@ -21,7 +21,9 @@ def apply_pipeline(dataset, preprocessing, features, models, seed=None):
     will not get full funding within 60 days.
 
     Inputs:
-    filepath (str): path to the file containing the training data
+    dataset (str): path to the file containing the training data
+    preprocessing (dict): dictionary of keyword arguments to pass to the
+        preprocess_data function
     seed (str): seed used for random process to adjucate ties when translating
         predicted probabilities to predicted classes given some percentile
         threshold
@@ -52,15 +54,15 @@ def apply_pipeline(dataset, preprocessing, features, models, seed=None):
                  'eligible_double_your_impact_match': str,
                  'date_posted': str,
                  'datefullyfunded': str}
-    df = pl.read_csv(file, col_types=col_types, index_col='projectid')
+    df = pl.read_csv(dataset, col_types=col_types, index_col='projectid')
     df = transform_data(df)
 
     #explore_data(df)
     training_splits, testing_splits = pl.create_temporal_splits(df, 
                                       'date_posted', {'months': 6}, gap={'days': 60})
     for i in range(len(training_splits)):
-        training_splits[i] = preprocess_data(training_splits[i])
-        testing_splits[i] = preprocess_data(testing_splits[i])
+        training_splits[i] = preprocess_data(training_splits[i], **preprocessing)
+        testing_splits[i] = preprocess_data(testing_splits[i], **preprocessing)
 
         training_splits[i], testing_splits[i] = generate_features(training_splits[i],
                                                                   testing_splits[i])
@@ -199,19 +201,19 @@ def explore_data(df):
     print(pl.report_n_missing(df))
     plt.show()
 
-def preprocess_data(df):
+def preprocess_data(df, methods=None, manual_vals=None):
     '''
     Preprocesses the data
 
     Inputs:
     df (pandas dataframe): the dataset
+    methods (dict): keys are column names and values the imputation method to
+        apply to that column; valid methods are defined in pipeline_library
+    manual_vals (dict): keys are column names and values the values to fill
+        missing values with in columns with 'manual' imputation method
 
     Returns: pandas dataframe
     '''
-    methods = {'secondary_focus_area': 'manual',
-               'secondary_focus_subject': 'manual'}
-    manual_vals = {'secondary_focus_area': 'N/A',
-                   'secondary_focus_subject': 'N/A'}
     df = pl.preprocess_data(df, methods=methods, manual_vals=manual_vals)
 
     return df
@@ -404,7 +406,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     
     data, preprocess, features, models, seed = parse_args(args)
-    apply_pipeline(data, preprocess, features, models, seed)
+    #apply_pipeline(data, preprocess, features, models, seed)
     '''
     models = [{'model': 'dt',
                'criterion': 'entropy',
