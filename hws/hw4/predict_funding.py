@@ -65,7 +65,8 @@ def apply_pipeline(dataset, preprocessing, features, models, seed=None):
         testing_splits[i] = preprocess_data(testing_splits[i], **preprocessing)
 
         training_splits[i], testing_splits[i] = generate_features(training_splits[i],
-                                                                  testing_splits[i])
+                                                                  testing_splits[i],
+                                                                  **features)
     for model in models:
         print('-' * 20 +  '\nModel Specifications\n' + str(model) + '\n' + '_' * 20)
         model_name = model.get('name', None)
@@ -89,6 +90,7 @@ def transform_data(df):
     df['daystofullfunding'] = pl.create_time_diff(df.date_posted,
                                                   df.datefullyfunded)
     df['daystofullfunding'] = df.daystofullfunding.apply(lambda x: x.days)
+    df['not_fully_funded_60days'] = df.daystofullfunding > 60
 
     tf_cols = ['school_charter', 'school_magnet', 'eligible_double_your_impact_match']    
     for col in tf_cols:
@@ -219,16 +221,42 @@ def preprocess_data(df, methods=None, manual_vals=None):
     return df
 
 def generate_features(training, testing, n_ocurr_cols, scale_cols, bin_cols,
-                      cat_cols,binary_cut_cols, drop_cols):
+                      dummy_cols, binary_cut_cols, drop_cols):
     '''
     Generates categorical, binary, and scaled features. While features are
     generate for the training data independent of the testing data, features
     for the testing data sometimes require ranges or other information about the
     properties of features created for the training data to ensure consistency.
+    Operations will occurr in the following order:
+    - Create number of occurences columns, name of each column will be the name
+      of the original column plus the suffix '_n_ocurr' (new column created)
+    - Scale columns (replaces original column)
+    - Bin columns (replaces original column)
+    - Create dummy columns (replaces original column)
+    - Binary cut columns (replaces original column)
+    - Drop columns (eliminates original column)
+
+    As such, number of occurence columns may be scaled, binned, etc, by
+    specifying '<col_name>_n_ocurr' in the arguments. Binned columns will
+    automatically be converted to dummies
 
     Inputs:
     training (pandas dataframe): the training data
     testing (pandas dataframe): the testing data
+    n_ocurr_cols (list of strs): names of columns to count the number of
+        ocurrences of each value for
+    scale_cols (list of strs): names of columns to rescale to be between -1 and
+        1
+    bin_cols (dict): each key is the name of a column to bin and each value is a
+        dictionary of arguments to pass to the cut_variable function in
+        pipeline_library (must contain a value for bin (a binning rule), 
+        labels and kwargs parameters are optional)
+    dummy_cols (list of strs): names of columns to convert to dummy variables
+    binary_cut_cols (dict of dicts): each key is the name of a column to cut
+        into two groups based on some threshold and each value is a dictionry
+        of arguments to pass to the cut_binary function in pipeline_library
+        (must contain a value for threshold, or_equal_to parameter is optional)
+    drop_cols (list of strs): names of columns to drop
 
     Returns: tuple of pandas dataframe, the training and testing datasets after
         generating the features
@@ -244,7 +272,6 @@ def generate_features(training, testing, n_ocurr_cols, scale_cols, bin_cols,
         testing.loc[:, str(col) + '_n_occur'] = pl.generate_n_occurences(testing[col],
                                                              addl_obs=training[col])
 
-    scale_cols = scale_cols + [col + '_n_occur' for col in n_ocurr_cols]
     for col in scale_cols:
         max_training = max(training[col])
         min_training = min(training[col])
@@ -252,35 +279,24 @@ def generate_features(training, testing, n_ocurr_cols, scale_cols, bin_cols,
         testing.loc[:, col] = pl.scale_variable_minmax(testing[col], a=max_training,
                                                 b=min_training)
 
-    bin_cols = []
-    for col in bin_cols:
-        training.loc[:, col], bin_edges = pl.cut_variable(training[col], n_quantlies)
+    for col, specs in bin_cols.items():
+        training.loc[:, col], bin_edges = pl.cut_variable(training[col], **specs)
         bin_edges[0] = - float('inf') #test observations below the lowest observation
         #in the training set should be mapped to the lowest bin
         bin_edges[-1] = float('inf') #test observations above the highest observation
         #in the training set should be mapped to the highest bin
         testing[col], _ = pl.cut_variable(testing[col], bin_edges)
 
-
-    cat_cols = ['school_city', 'school_state', 'school_metro',
-                'teacher_prefix',
-                'primary_focus_subject', 'primary_focus_area',
-                'secondary_focus_subject', 'secondary_focus_area',
-                'resource_type',
-                'poverty_level', 'grade_level'] + bin_cols
-    for col in cat_cols:
+    dummy_cols += list(bin_cols.keys())
+    for col in dummy_cols:
         values = list(training[col].value_counts().index)
         training = pl.create_dummies(training, col, values=values)
         testing = pl.create_dummies(testing, col, values=values)
 
-    training['fully_funded_60days'] = pl.cut_binary(training.daystofullfunding, 60)
-    testing['fully_funded_60days'] = pl.cut_binary(testing.daystofullfunding, 60)
+    for col, specs in binary_cut_cols.items():
+        training[col] = pl.cut_binary(training[col], **specs)
+        testing[col] = pl.cut_binary(testing[col], **specs)
 
-    drop_cols = ['school_longitude', 'school_latitude', 'schoolid',
-                  'teacher_acctid', 'school_district', 'school_ncesid',
-                  'school_county', 'daystofullfunding', 'datefullyfunded',
-                  'date_posted']
-    drop_cols = drop_cols + [str(col) + '_missing' for col in drop_cols]
     training = training.drop(drop_cols, axis=1)
     testing = testing.drop(drop_cols, axis=1)
     
@@ -303,8 +319,8 @@ def train_classifiers(model, training):
     classifiers = []
     for i in range(len(training)):
         print('Building with training set {}'.format(i + 1))
-        features = training[i].drop('fully_funded_60days', axis=1)
-        target = training[i].fully_funded_60days
+        features = training[i].drop('not_fully_funded_60days', axis=1)
+        target = training[i].not_fully_funded_60days
         classifiers.append(pl.generate_classifier(features, target, model))
 
     return classifiers
@@ -325,7 +341,7 @@ def predict_probs(trained_classifiers, testing_splits):
     pred_probs = []
     for i in range(len(trained_classifiers)):
         print('Predicting probabilies with training set {}'.format(i+1))
-        features = testing_splits[i].drop('fully_funded_60days', axis=1)
+        features = testing_splits[i].drop('not_fully_funded_60days', axis=1)
         pred_probs.append(pl.predict_target_probability(trained_classifiers[i],
                                                         features))
 
@@ -351,7 +367,7 @@ def evaluate_classifiers(pred_probs, testing_splits, seed=None, model_name=None)
     table = pd.DataFrame()
     for i in range(len(pred_probs)):
         print('Evaluating predictions with training set {}'.format(i+1))
-        y_actual = testing_splits[i].fully_funded_60days
+        y_actual = testing_splits[i].not_fully_funded_60days
         table['Test/Training Set {}'.format(i + 1)], fig =\
             pl.evaluate_classifier(pred_probs[i], y_actual,\
             [0.01, 0.02, 0.05, 0.10, 0.20, 0.30, 0.50], seed=seed, 
@@ -371,7 +387,6 @@ def parse_args(args):
     Returns: 5-ple of filepath to dataset (str), pre-procesing specs (dict),
     feature generation specs (dict), model specs (list of dicts), seed (int)
     '''
-    print(args)
     dataset_fp = args.dataset
 
     if args.preprocess is not None:
@@ -406,7 +421,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     
     data, preprocess, features, models, seed = parse_args(args)
-    #apply_pipeline(data, preprocess, features, models, seed)
+    apply_pipeline(data, preprocess, features, models, seed)
     '''
     models = [{'model': 'dt',
                'criterion': 'entropy',
