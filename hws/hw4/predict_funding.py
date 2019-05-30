@@ -57,7 +57,7 @@ def apply_pipeline(dataset, preprocessing, features, models, seed=None):
     df = pl.read_csv(dataset, col_types=col_types, index_col='projectid')
     df = transform_data(df)
 
-    #explore_data(df)
+    explore_data(df)
     training_splits, testing_splits = pl.create_temporal_splits(df, 
                                       'date_posted', {'months': 6}, gap={'days': 60})
     for i in range(len(training_splits)):
@@ -98,13 +98,15 @@ def transform_data(df):
 
     return df
 
-def explore_data(df):
+def explore_data(df, save_figs):
     '''
     Generates distributions of variables, correlations, outliers, and other
     summaries of variables in the dataset.
 
     Inputs:
     df (pandas dataframe): the dataframe
+    save_figs (bool): if true, figures are saved and not displayed; if false,
+        figures are dispalyed
     '''
     print('---------------------\n| General statistics |\n---------------------')
     n_projects = len(df)
@@ -124,25 +126,42 @@ def explore_data(df):
 
     per_teach_desc, per_teach_fig = pl.count_per_categorical(df, 'teacher_acctid')
     print(per_teach_desc)
-    per_teach_fig.show()
+    if save_fig:
+        plt.savefig('teacher_acctid.png')
+    else:
+        plt.show()
     print()
 
     per_dist_desc, per_dist_fig = pl.count_per_categorical(df, 'school_district')
     print(per_dist_desc)
-    per_dist_fig.show()
+    if save_fig:
+        plt.savefig('school_district.png')
+    else:
+        plt.show()
     print()
     
     per_school_desc, per_school_fig = pl.count_per_categorical(df, 'schoolid')
     print(per_school_desc)
-    per_school_fig.show()
+    if save_fig:
+        plt.savefig('schoolid.png')
+    else:
+        plt.show()
     print()
 
     print(pl.summarize_data(df, agg_cols=['daystofullfunding']))
-    pl.show_distribution(df.daystofullfunding).show()
+    fullfunding_fig = pl.show_distribution(df.daystofullfunding)
+    if save_fig:
+        plt.savefig('daystofullfunding.png')
+    else:
+        plt.show()
     print()
 
     print('---------------------\n|  Location splits   |\n---------------------')
-    pl.show_distribution(df.school_metro).show()
+    school_metro_fig = pl.show_distribution(df.school_metro)
+    if save_fig:
+        plt.savefig('school_metro.png')
+    else:
+        plt.show()
 
     location_cols = ['school_metro', 'school_state']
     for col in location_cols:
@@ -153,25 +172,41 @@ def explore_data(df):
     print('---------------------\n| School type splits |\n---------------------')
     type_cols = ['school_charter', 'school_magnet', 'poverty_level']
     for col in type_cols:
-        pl.show_distribution(df[col].astype(str)).show()
+        school_type_fig = pl.show_distribution(df[col].astype(str))
+        if save_fig:
+            plt.savefig(col + '.png')
+        else:
+            plt.show()
         print(pl.summarize_data(df, grouping_vars=[col],
                                 agg_cols=['daystofullfunding']))
     print()
 
     print('----------------------\n| Project type splits  |\n----------------------')
-    pl.show_distribution(df.primary_focus_area).show()
+    primary_focus_area_fig = pl.show_distribution(df.primary_focus_area)
+    if save_fig:
+        plt.savefig('primaryfocusarea.png')
+    else:
+        plt.show()
     print(pl.summarize_data(df, grouping_vars=['primary_focus_area',
                                                'secondary_focus_area'],
                             agg_cols=['daystofullfunding']))
     print()
 
-    pl.show_distribution(df.primary_focus_subject).show()
+    primary_focus_subj_fig = pl.show_distribution(df.primary_focus_subject)
+    if save_fig:
+        plt.savefig('primaryfocussubject.png')
+    else:
+        plt.show()
     print(pl.summarize_data(df, grouping_vars=['primary_focus_subject', 
                                                'secondary_focus_subject'],
                             agg_cols=['daystofullfunding']))
     print()
 
-    pl.show_distribution(df.grade_level).show()
+    grade_level_fig = pl.show_distribution(df.grade_level)
+    if save_fig:
+        plt.savefig('gradelevel.png')
+    else:
+        plt.show()
     print(pl.summarize_data(df, grouping_vars=['grade_level'], 
                             agg_cols=['daystofullfunding']))
     print()
@@ -181,14 +216,25 @@ def explore_data(df):
                             agg_cols=['daystofullfunding']))
     print()
 
-    pl.show_distribution(df.eligible_double_your_impact_match.astype(str))\
-      .show()
+    double_fig = pl.show_distribution(df.eligible_double_your_impact_match.astype(str))
+    if save_fig:
+        plt.savefig('doubleimpact.png')
+    else:
+        plt.show()
     print(pl.summarize_data(df, grouping_vars=['eligible_double_your_impact_match'], 
                             agg_cols=['daystofullfunding']))
 
     print('----------------------\n| Numeric variables |\n----------------------')
-    pl.show_distribution(df.total_price_including_optional_support).show()
-    pl.show_distribution(df.students_reached).show()
+    price_fig = pl.show_distribution(df.total_price_including_optional_support)
+    if save_fig:
+        plt.savefig('totalprice.png')
+    else:
+        plt.show()
+    students_reached_fig = pl.show_distribution(df.students_reached)
+    if save_fig:
+        plt.savefig('studentsreached.png')
+    else:
+        plt.show()
     print()
 
     print(pl.summarize_data(df, agg_cols=['total_price_including_optional_support',
@@ -201,7 +247,6 @@ def explore_data(df):
 
     print('----------------------\n| Outliers & missing data |\n----------------------')
     print(pl.report_n_missing(df))
-    plt.show()
 
 def preprocess_data(df, methods=None, manual_vals=None):
     '''
@@ -347,7 +392,8 @@ def predict_probs(trained_classifiers, testing_splits):
 
     return pred_probs
 
-def evaluate_classifiers(pred_probs, testing_splits, seed=None, model_name=None):
+def evaluate_classifiers(pred_probs, testing_splits, seed=None, model_name=None,
+                         fig_name=None):
     '''
     Prints out evaluations for the trained model using the specified testing
     datasets
@@ -363,6 +409,8 @@ def evaluate_classifiers(pred_probs, testing_splits, seed=None, model_name=None)
         threshold
     model_name (str): model name to include in the title of the 
         precision/recall curve graph
+    fig_name (str): prefix of file name to save the precision/recall curve in;
+        if not specified the figure is displayed but not saved
     '''
     table = pd.DataFrame()
     for i in range(len(pred_probs)):
@@ -373,9 +421,11 @@ def evaluate_classifiers(pred_probs, testing_splits, seed=None, model_name=None)
             [0.01, 0.02, 0.05, 0.10, 0.20, 0.30, 0.50], seed=seed, 
             model_name=model_name,
             dataset_name='Training/Testing Set # {}'.format(i + 1))
-        fig.show()
+        if fig_name is not None:
+            plt.save_fig(fig_name + '_set' + str(i) + '.png')
+        else:
+            plt.show()
     print(table)
-    plt.show()
 
 def parse_args(args):
     '''
@@ -422,51 +472,3 @@ if __name__ == '__main__':
     
     data, preprocess, features, models, seed = parse_args(args)
     apply_pipeline(data, preprocess, features, models, seed)
-    '''
-    models = [{'model': 'dt',
-               'criterion': 'entropy',
-               'max_depth': 35},
-              {'model': 'lr',
-               'solver': 'sag'},
-              {'model': 'svc'},
-              {'model': 'rf',
-               'criterion': 'entropy',
-               'max_depth': 35,
-               'n_estimators': 10},
-              {'model': 'boosting',
-               'n_estimators': 10},
-              {'model': 'bagging',
-               'base_estimator': tree.DecisionTreeClassifier(max_depth=35)},
-              {'model': 'knn',
-               'n_neighbors': 10},
-              {'model': 'dummy',
-               'strategy': 'most_frequent'}]
-
-    feature_args = {'n_ocurr_cols': ['schoolid', 'teacher_acctid',
-                                     'school_district', 'school_county'],
-                    'scale_cols': ['students_reached', 
-                                   'total_price_including_optional_support',
-                                   'schoolid_n_occur', 'teacher_acctid_n_occur',
-                                   'school_district_n_occur',
-                                   'school_county_n_occur'],
-                    'bin_cols': {},
-                    'cat_cols': ['school_city', 'school_state', 'school_metro',
-                                 'teacher_prefix', 'primary_focus_subject',
-                                 'primary_focus_area', 'secondary_focus_subject',
-                                 'secondary_focus_area', 'resource_type',
-                                 'poverty_level', 'grade_level'],
-                    'binary_cut_cols': {'daystofullfunding', {'threshold': 60}},
-                    'drop_cols': ['school_longitude', 'school_latitude',
-                                  'schoolid', 'teacher_acctid',
-                                  'school_district', 'school_ncesid',
-                                  'school_county', 'daystofullfunding',
-                                  'datefullyfunded','date_posted',
-                                  'school_longitude_missing',
-                                  'school_latitude_missing',
-                                  'schoolncesid_missing',
-                                  'daystofullfunding_missing',
-                                  'datefullyfunded_missing',
-                                  'date_posted_missing']}
-
-    preprocessing_args = {}
-    '''
