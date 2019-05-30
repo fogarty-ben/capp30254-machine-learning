@@ -24,5 +24,7 @@ Helpful documentation and references are cited throughout the docstrings of the 
 
 To run the program, use the following command:
 ```
-python3 predict_funding.py <path to dataset>
+python3 predict_funding.py -d <path to dataset> -f <path to features config JSON file>
+-m <path to models config JSON file> [-p <path to optional preprocessing config file>]
+[-s <optional random seed>] [--savefigs (denotes that figures should be saved instead of displayed)]
 ```

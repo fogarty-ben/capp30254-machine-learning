@@ -16,7 +16,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import random
 import seaborn as sns
-import warnings
 
 def read_csv(filepath, cols=None, col_types=None, index_col=None):
     '''
