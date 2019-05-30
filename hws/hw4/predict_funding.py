@@ -15,7 +15,8 @@ import pandas as pd
 import pipeline_library as pl
 import matplotlib.pyplot as plt
 
-def apply_pipeline(dataset, preprocessing, features, models, seed=None):
+def apply_pipeline(dataset, preprocessing, features, models, seed=None,
+                   save_figs=False):
     '''
     Applies the pipeline library to predicting if a project on Donors Choose
     will not get full funding within 60 days.
@@ -27,6 +28,7 @@ def apply_pipeline(dataset, preprocessing, features, models, seed=None):
     seed (str): seed used for random process to adjucate ties when translating
         predicted probabilities to predicted classes given some percentile
         threshold
+    save_figs (bool): if true figures are saved instead of displayed
     '''
     col_types = {'projectid': str,
                  'teacher_acctid': str,
@@ -57,9 +59,11 @@ def apply_pipeline(dataset, preprocessing, features, models, seed=None):
     df = pl.read_csv(dataset, col_types=col_types, index_col='projectid')
     df = transform_data(df)
 
-    explore_data(df)
+    explore_data(df, save_figs)
+
     training_splits, testing_splits = pl.create_temporal_splits(df, 
                                       'date_posted', {'months': 6}, gap={'days': 60})
+    
     for i in range(len(training_splits)):
         training_splits[i] = preprocess_data(training_splits[i], **preprocessing)
         testing_splits[i] = preprocess_data(testing_splits[i], **preprocessing)
@@ -67,13 +71,17 @@ def apply_pipeline(dataset, preprocessing, features, models, seed=None):
         training_splits[i], testing_splits[i] = generate_features(training_splits[i],
                                                                   testing_splits[i],
                                                                   **features)
-    for model in models:
+    for i in range(len(models)):
+        model = models[i]
         print('-' * 20 +  '\nModel Specifications\n' + str(model) + '\n' + '_' * 20)
-        model_name = model.get('name', None)
+        model_name = model.get('name', 'Model #{}'.format(i + 1))
         trained_classifiers = train_classifiers(model, training_splits)
         pred_probs = predict_probs(trained_classifiers, testing_splits)
-        evaluate_classifiers(pred_probs, testing_splits, seed, model_name)
-
+        if save_figs:
+            evaluate_classifiers(pred_probs, testing_splits, seed, model_name,
+                                 fig_prefix=model_name)
+        else:
+            evaluate_classifiers(pred_probs, testing_splits, seed, model_name)
 
 def transform_data(df):
     '''
@@ -126,15 +134,16 @@ def explore_data(df, save_figs):
 
     per_teach_desc, per_teach_fig = pl.count_per_categorical(df, 'teacher_acctid')
     print(per_teach_desc)
-    if save_fig:
+    if save_figs:
         plt.savefig('teacher_acctid.png')
+        plt.close()
     else:
         plt.show()
     print()
 
     per_dist_desc, per_dist_fig = pl.count_per_categorical(df, 'school_district')
     print(per_dist_desc)
-    if save_fig:
+    if save_figs:
         plt.savefig('school_district.png')
     else:
         plt.show()
@@ -142,24 +151,27 @@ def explore_data(df, save_figs):
     
     per_school_desc, per_school_fig = pl.count_per_categorical(df, 'schoolid')
     print(per_school_desc)
-    if save_fig:
+    if save_figs:
         plt.savefig('schoolid.png')
+        plt.close()
     else:
         plt.show()
     print()
 
     print(pl.summarize_data(df, agg_cols=['daystofullfunding']))
     fullfunding_fig = pl.show_distribution(df.daystofullfunding)
-    if save_fig:
+    if save_figs:
         plt.savefig('daystofullfunding.png')
+        plt.close()
     else:
         plt.show()
     print()
 
     print('---------------------\n|  Location splits   |\n---------------------')
     school_metro_fig = pl.show_distribution(df.school_metro)
-    if save_fig:
+    if save_figs:
         plt.savefig('school_metro.png')
+        plt.close()
     else:
         plt.show()
 
@@ -173,8 +185,9 @@ def explore_data(df, save_figs):
     type_cols = ['school_charter', 'school_magnet', 'poverty_level']
     for col in type_cols:
         school_type_fig = pl.show_distribution(df[col].astype(str))
-        if save_fig:
+        if save_figs:
             plt.savefig(col + '.png')
+            plt.close()
         else:
             plt.show()
         print(pl.summarize_data(df, grouping_vars=[col],
@@ -183,8 +196,9 @@ def explore_data(df, save_figs):
 
     print('----------------------\n| Project type splits  |\n----------------------')
     primary_focus_area_fig = pl.show_distribution(df.primary_focus_area)
-    if save_fig:
+    if save_figs:
         plt.savefig('primaryfocusarea.png')
+        plt.close()
     else:
         plt.show()
     print(pl.summarize_data(df, grouping_vars=['primary_focus_area',
@@ -193,8 +207,9 @@ def explore_data(df, save_figs):
     print()
 
     primary_focus_subj_fig = pl.show_distribution(df.primary_focus_subject)
-    if save_fig:
+    if save_figs:
         plt.savefig('primaryfocussubject.png')
+        plt.close()
     else:
         plt.show()
     print(pl.summarize_data(df, grouping_vars=['primary_focus_subject', 
@@ -203,8 +218,9 @@ def explore_data(df, save_figs):
     print()
 
     grade_level_fig = pl.show_distribution(df.grade_level)
-    if save_fig:
+    if save_figs:
         plt.savefig('gradelevel.png')
+        plt.close()
     else:
         plt.show()
     print(pl.summarize_data(df, grouping_vars=['grade_level'], 
@@ -217,8 +233,9 @@ def explore_data(df, save_figs):
     print()
 
     double_fig = pl.show_distribution(df.eligible_double_your_impact_match.astype(str))
-    if save_fig:
+    if save_figs:
         plt.savefig('doubleimpact.png')
+        plt.close()
     else:
         plt.show()
     print(pl.summarize_data(df, grouping_vars=['eligible_double_your_impact_match'], 
@@ -226,13 +243,15 @@ def explore_data(df, save_figs):
 
     print('----------------------\n| Numeric variables |\n----------------------')
     price_fig = pl.show_distribution(df.total_price_including_optional_support)
-    if save_fig:
+    if save_figs:
         plt.savefig('totalprice.png')
+        plt.close()
     else:
         plt.show()
     students_reached_fig = pl.show_distribution(df.students_reached)
-    if save_fig:
+    if save_figs:
         plt.savefig('studentsreached.png')
+        plt.close()
     else:
         plt.show()
     print()
@@ -242,8 +261,7 @@ def explore_data(df, save_figs):
     print()
 
     print('----------------------\n| Numeric correlations |\n----------------------')
-    print(pl.pw_correlate(df.drop(['school_latitude', 'school_longitude'], axis=1), 
-                          visualize=True))
+    print(pl.pw_correlate(df.select_dtypes(include=[np.number]), visualize=True))
 
     print('----------------------\n| Outliers & missing data |\n----------------------')
     print(pl.report_n_missing(df))
@@ -385,7 +403,7 @@ def predict_probs(trained_classifiers, testing_splits):
     '''
     pred_probs = []
     for i in range(len(trained_classifiers)):
-        print('Predicting probabilies with training set {}'.format(i+1))
+        print('Predicting probabilies with testing set {}'.format(i+1))
         features = testing_splits[i].drop('not_fully_funded_60days', axis=1)
         pred_probs.append(pl.predict_target_probability(trained_classifiers[i],
                                                         features))
@@ -393,7 +411,7 @@ def predict_probs(trained_classifiers, testing_splits):
     return pred_probs
 
 def evaluate_classifiers(pred_probs, testing_splits, seed=None, model_name=None,
-                         fig_name=None):
+                         fig_prefix=None):
     '''
     Prints out evaluations for the trained model using the specified testing
     datasets
@@ -414,15 +432,16 @@ def evaluate_classifiers(pred_probs, testing_splits, seed=None, model_name=None,
     '''
     table = pd.DataFrame()
     for i in range(len(pred_probs)):
-        print('Evaluating predictions with training set {}'.format(i+1))
+        print('Evaluating predictions with testing set {}'.format(i+1))
         y_actual = testing_splits[i].not_fully_funded_60days
         table['Test/Training Set {}'.format(i + 1)], fig =\
             pl.evaluate_classifier(pred_probs[i], y_actual,\
             [0.01, 0.02, 0.05, 0.10, 0.20, 0.30, 0.50], seed=seed, 
             model_name=model_name,
             dataset_name='Training/Testing Set # {}'.format(i + 1))
-        if fig_name is not None:
-            plt.save_fig(fig_name + '_set' + str(i) + '.png')
+        if fig_prefix is not None:
+            plt.savefig(fig_prefix + '_dataset' + str(i + 1) + '.png')
+            plt.close()
         else:
             plt.show()
     print(table)
@@ -434,8 +453,9 @@ def parse_args(args):
     Inputs:
     args (argsparse Namespace): arguments from the command line
 
-    Returns: 5-ple of filepath to dataset (str), pre-procesing specs (dict),
-    feature generation specs (dict), model specs (list of dicts), seed (int)
+    Returns: 6-ple of filepath to dataset (str), pre-procesing specs (dict),
+    feature generation specs (dict), model specs (list of dicts), seed (int),
+    whether or not to save figures (boolean)
     '''
     dataset_fp = args.dataset
 
@@ -453,7 +473,12 @@ def parse_args(args):
 
     seed = args.seed
 
-    return dataset_fp, preprocess_specs, feature_specs, model_specs, seed
+    if args.save_figs:
+        save_figs = True
+    else:
+        save_figs = False
+
+    return dataset_fp, preprocess_specs, feature_specs, model_specs, seed, save_figs
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=("Apply machine learning" +
@@ -468,7 +493,10 @@ if __name__ == '__main__':
                         required=False, help="Path to the preprocessing config JSON")
     parser.add_argument('-s', '--seed', type=float, dest='seed', required=False,
                         help='Random seed for tiebreaking when predicting classes')
+    parser.add_argument('--savefigs', dest='save_figs',
+                        required=False, action='store_true', 
+                        help='Save figures instead of displaying them')
     args = parser.parse_args()
     
-    data, preprocess, features, models, seed = parse_args(args)
-    apply_pipeline(data, preprocess, features, models, seed)
+    data, preprocess, features, models, seed, save_figs = parse_args(args)
+    apply_pipeline(data, preprocess, features, models, seed, save_figs)
