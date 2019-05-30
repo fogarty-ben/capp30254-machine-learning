@@ -451,29 +451,6 @@ def report_n_missing(df):
 
     return missing
 
-def select_k_best(features, target, k, score_func=None):
-    '''
-    Returns the (numeric) indices of the k features with the highest score. By
-    default, the scoring function is the ANOVA F-value between the target
-    variable and each feature.
-
-    Inputs:
-    features (pandas dataframe): data for all possible features to score
-    target (pandas series): data for target attribute to score features based on
-    score_func (callable): alternate scoring function to use; valid scoring
-        functions are defined in https://scikit-learn.org/stable/modules/
-        generated/sklearn.feature_selection.SelectKBest.html
-
-    Returns: numpy array of integers
-    '''
-    if score_func is None:
-        best_k = feature_selection.SelectKBest(k=k)
-    else:
-        best_k = feature_selection.SelectKBest(score_func=score_func, k=k)
-
-    best_k = best_k.fit(features, target)
-    return best_k.get_support(indices=True)
-
 def visualize_decision_tree(dt, feature_names, class_names, filepath='tree'):
     '''
     Saves and opens a PDF visualizing the specified decision tree.
