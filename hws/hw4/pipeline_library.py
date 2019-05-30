@@ -11,6 +11,7 @@ from copy import deepcopy
 from textwrap import wrap
 from sklearn import *
 import graphviz
+import json
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -518,6 +519,26 @@ def generate_iter_model_specs(base_specs, iter_param, iter_vals):
         model_specs[iter_param] = val
         models.append(model_specs)
     return models
+
+def write_model_specs(models, output, input=None):
+    '''
+    Writes a list of models to file so that they can be reused later. As the
+    output is stored in JSON format, model specifications including callable
+    objects are currently not supported.
+
+    Inputs:
+    models (list of dicts): the model specifications to write to file
+    output (str): the filepath to output the model specifications to, will
+        overwrite any existing file
+    input (str): a file with existing model specs to append the list to
+    '''
+    if input is not None:
+        with open(input, 'r') as input_file:
+            existing_models = json.load(input_file)
+            models = existing_models + models
+
+    with open(output, 'w') as output_file:
+        json.dump(models, output_file)
 
 def generate_classifier(features, target, model_specs):
     '''
