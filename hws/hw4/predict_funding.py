@@ -262,6 +262,11 @@ def explore_data(df, save_figs):
 
     print('----------------------\n| Numeric correlations |\n----------------------')
     print(pl.pw_correlate(df.select_dtypes(include=[np.number]), visualize=True))
+    if save_figs:
+        plt.savefig('correlations.png')
+        plt.close()
+    else:
+        plt.show()
 
     print('----------------------\n| Outliers & missing data |\n----------------------')
     print(pl.report_n_missing(df))
@@ -448,35 +453,41 @@ def evaluate_classifiers(pred_probs, testing_splits, seed=None, model_name=None,
 
 def parse_args(args):
     '''
-    Parses command line arguments for use by the rest of the software
+    Parses dictionary of arguments (typically from the command line) for use by
+    the rest of the software
 
     Inputs:
-    args (argsparse Namespace): arguments from the command line
+    args (dict): dict of arguments, typically from the command line; valid keys
+        are:
+        - 'dataset': path to the Donors' Choose dataset (required)
+        - 'features': path to the features config json file (required)
+        - 'models': path to the model specs json file (required)
+        - 'preprocess': path to the preprocessing config json file (optional)
+        - 'seed': numeric seed for tiebreaking (optional)
+        - 'save_figs': boolean for wheter figures should be saved or displayed
+                       (optional)
 
     Returns: 6-ple of filepath to dataset (str), pre-procesing specs (dict),
     feature generation specs (dict), model specs (list of dicts), seed (int),
     whether or not to save figures (boolean)
     '''
-    dataset_fp = args.dataset
+    dataset_fp = args['dataset']
 
-    if args.preprocess is not None:
-        with open(args.preprocess, 'r') as file:
+    if 'preprocess' in args:
+        with open(args['preprocess'], 'r') as file:
             preprocess_specs = json.load(file)
     else:
         preprocess_specs = {}
 
-    with open(args.features, 'r') as file:
+    with open(args['features'], 'r') as file:
         feature_specs = json.load(file)
 
-    with open(args.models, 'r') as file:
+    with open(args['models'], 'r') as file:
         model_specs = json.load(file)
 
-    seed = args.seed
+    seed = args.get('seed', None)
 
-    if args.save_figs:
-        save_figs = True
-    else:
-        save_figs = False
+    save_figs = args.get('save_figs', False)
 
     return dataset_fp, preprocess_specs, feature_specs, model_specs, seed, save_figs
 
@@ -498,5 +509,5 @@ if __name__ == '__main__':
                         help='Save figures instead of displaying them')
     args = parser.parse_args()
     
-    data, preprocess, features, models, seed, save_figs = parse_args(args)
+    data, preprocess, features, models, seed, save_figs = parse_args(vars(args))
     apply_pipeline(data, preprocess, features, models, seed, save_figs)
