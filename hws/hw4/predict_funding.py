@@ -8,12 +8,13 @@ Ben Fogarty
 
 import argparse
 import json
-import sys
-from sklearn import tree
+
 import numpy as np
 import pandas as pd
-import pipeline_library as pl
 import matplotlib.pyplot as plt
+
+import pipeline_library as pl
+
 
 def apply_pipeline(dataset, preprocessing, features, models, seed=None,
                    save_figs=False):
@@ -61,9 +62,9 @@ def apply_pipeline(dataset, preprocessing, features, models, seed=None,
 
     explore_data(df, save_figs)
 
-    training_splits, testing_splits = pl.create_temporal_splits(df, 
+    training_splits, testing_splits = pl.create_temporal_splits(df,
                                       'date_posted', {'months': 6}, gap={'days': 60})
-    
+
     for i in range(len(training_splits)):
         training_splits[i] = preprocess_data(training_splits[i], **preprocessing)
         testing_splits[i] = preprocess_data(testing_splits[i], **preprocessing)
@@ -100,7 +101,7 @@ def transform_data(df):
     df['daystofullfunding'] = df.daystofullfunding.apply(lambda x: x.days)
     df['not_fully_funded_60days'] = df.daystofullfunding > 60
 
-    tf_cols = ['school_charter', 'school_magnet', 'eligible_double_your_impact_match']    
+    tf_cols = ['school_charter', 'school_magnet', 'eligible_double_your_impact_match']
     for col in tf_cols:
         df[col] = (df[col] == 't').astype('float')
 
@@ -119,10 +120,10 @@ def explore_data(df, save_figs):
     print('---------------------\n| General statistics |\n---------------------')
     n_projects = len(df)
     print('The dataset contains {} projects.\n'.format(n_projects))
-    
+
     n_teachers = len(df.teacher_acctid.value_counts())
     n_schools = len(df.schoolid.value_counts())
-    print('These projects were submitted from {} different'.format(n_teachers) + 
+    print('These projects were submitted from {} different'.format(n_teachers) +
           '\nteacher accounts across {} different schools.\n'.format(n_schools))
 
     n_positive = np.sum(df.daystofullfunding <= 60)
@@ -148,7 +149,7 @@ def explore_data(df, save_figs):
     else:
         plt.show()
     print()
-    
+
     per_school_desc, per_school_fig = pl.count_per_categorical(df, 'schoolid')
     print(per_school_desc)
     if save_figs:
@@ -212,7 +213,7 @@ def explore_data(df, save_figs):
         plt.close()
     else:
         plt.show()
-    print(pl.summarize_data(df, grouping_vars=['primary_focus_subject', 
+    print(pl.summarize_data(df, grouping_vars=['primary_focus_subject',
                                                'secondary_focus_subject'],
                             agg_cols=['daystofullfunding']))
     print()
@@ -223,12 +224,12 @@ def explore_data(df, save_figs):
         plt.close()
     else:
         plt.show()
-    print(pl.summarize_data(df, grouping_vars=['grade_level'], 
+    print(pl.summarize_data(df, grouping_vars=['grade_level'],
                             agg_cols=['daystofullfunding']))
     print()
 
     pl.show_distribution(df.resource_type).show()
-    print(pl.summarize_data(df, grouping_vars=['resource_type'], 
+    print(pl.summarize_data(df, grouping_vars=['resource_type'],
                             agg_cols=['daystofullfunding']))
     print()
 
@@ -238,7 +239,7 @@ def explore_data(df, save_figs):
         plt.close()
     else:
         plt.show()
-    print(pl.summarize_data(df, grouping_vars=['eligible_double_your_impact_match'], 
+    print(pl.summarize_data(df, grouping_vars=['eligible_double_your_impact_match'],
                             agg_cols=['daystofullfunding']))
 
     print('----------------------\n| Numeric variables |\n----------------------')
@@ -317,7 +318,7 @@ def generate_features(training, testing, n_ocurr_cols, scale_cols, bin_cols,
         1
     bin_cols (dict): each key is the name of a column to bin and each value is a
         dictionary of arguments to pass to the cut_variable function in
-        pipeline_library (must contain a value for bin (a binning rule), 
+        pipeline_library (must contain a value for bin (a binning rule),
         labels and kwargs parameters are optional)
     dummy_cols (list of strs): names of columns to convert to dummy variables
     binary_cut_cols (dict of dicts): each key is the name of a column to cut
@@ -345,7 +346,7 @@ def generate_features(training, testing, n_ocurr_cols, scale_cols, bin_cols,
         min_training = min(training[col])
         training.loc[:, col] = pl.scale_variable_minmax(training[col])
         testing.loc[:, col] = pl.scale_variable_minmax(testing[col], a=max_training,
-                                                b=min_training)
+                                                       b=min_training)
 
     for col, specs in bin_cols.items():
         training.loc[:, col], bin_edges = pl.cut_variable(training[col], **specs)
@@ -367,14 +368,14 @@ def generate_features(training, testing, n_ocurr_cols, scale_cols, bin_cols,
 
     training = training.drop(drop_cols, axis=1)
     testing = testing.drop(drop_cols, axis=1)
-    
+
     return training, testing
 
 def train_classifiers(model, training):
     '''
     Returns a 2-D list that where where each inner list is a set of
     classifiers and the outer list represents each training/test set (i.e.
-    at location 0,0 in the output list is the first model trained on the 
+    at location 0,0 in the output list is the first model trained on the
     first set and at location 1,0 is the first model trained on the second
     set).
 
@@ -430,7 +431,7 @@ def evaluate_classifiers(pred_probs, testing_splits, seed=None, model_name=None,
     seed (str): seed used for random process to adjucate ties when translating
         predicted probabilities to predicted classes given some percentile
         threshold
-    model_name (str): model name to include in the title of the 
+    model_name (str): model name to include in the title of the
         precision/recall curve graph
     fig_name (str): prefix of file name to save the precision/recall curve in;
         if not specified the figure is displayed but not saved
@@ -441,7 +442,7 @@ def evaluate_classifiers(pred_probs, testing_splits, seed=None, model_name=None,
         y_actual = testing_splits[i].not_fully_funded_60days
         table['Test/Training Set {}'.format(i + 1)], fig =\
             pl.evaluate_classifier(pred_probs[i], y_actual,\
-            [0.01, 0.02, 0.05, 0.10, 0.20, 0.30, 0.50], seed=seed, 
+            [0.01, 0.02, 0.05, 0.10, 0.20, 0.30, 0.50], seed=seed,
             model_name=model_name,
             dataset_name='Training/Testing Set # {}'.format(i + 1))
         if fig_prefix is not None:
@@ -493,7 +494,7 @@ def parse_args(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=("Apply machine learning" +
-        "pipeline to Donors' Choose Data"))
+                                                  "pipeline to Donors' Choose Data"))
     parser.add_argument('-d', '--data', type=str, dest='dataset', required=True,
                         help="Path to the Donors' Choose dataset")
     parser.add_argument('-f', '--features', type=str, dest='features',
@@ -505,9 +506,9 @@ if __name__ == '__main__':
     parser.add_argument('-s', '--seed', type=float, dest='seed', required=False,
                         help='Random seed for tiebreaking when predicting classes')
     parser.add_argument('--savefigs', dest='save_figs',
-                        required=False, action='store_true', 
+                        required=False, action='store_true',
                         help='Save figures instead of displaying them')
     args = parser.parse_args()
-    
+
     data, preprocess, features, models, seed, save_figs = parse_args(vars(args))
     apply_pipeline(data, preprocess, features, models, seed, save_figs)

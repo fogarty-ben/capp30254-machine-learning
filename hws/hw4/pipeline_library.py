@@ -6,16 +6,17 @@ Ben Fogarty
 30 May 2019
 '''
 
-import dateutil.relativedelta as relativedelta
 from copy import deepcopy
 from textwrap import wrap
-from sklearn import *
-import graphviz
 import json
+import random
+
+import dateutil.relativedelta as relativedelta
+from sklearn import dummy, ensemble, linear_model, metrics, neighbors, svm, tree
+import graphviz
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
-import random
 import seaborn as sns
 
 def read_csv(filepath, cols=None, col_types=None, index_col=None):
@@ -45,7 +46,7 @@ def count_per_categorical(df, cat_column):
     Summaries the number of observations associated with each value in a given
     categorical column and shows the distribtuion of observations across
     categories.
-    
+
     Inputs:
     df (pandas dataframe): the dataset
     cat_column (str): the name of the categorical column
@@ -118,7 +119,7 @@ def pw_correlate(df, variables=None, visualize=False):
     '''
     if not variables:
         variables = [col for col in df.columns
-                         if pd.api.types.is_numeric_dtype(df[col])]
+                     if pd.api.types.is_numeric_dtype(df[col])]
 
     corr_table = np.corrcoef(df[variables].dropna(), rowvar=False)
     corr_table = pd.DataFrame(corr_table, index=variables, columns=variables)
@@ -163,7 +164,7 @@ def summarize_data(df, grouping_vars=None, agg_cols=None):
     if not grouping_vars:
         grouping_vars = []
     if agg_cols:
-        keep =  grouping_vars + agg_cols
+        keep = grouping_vars + agg_cols
         df = df[keep]
 
     if grouping_vars:
@@ -224,10 +225,10 @@ def find_outliers(df, excluded=None):
 def identify_missing(series):
     '''
     Generates series specifying whether observation contains a missing value.
-    
+
     Inputs:
     sereis (pandas dataframe): the variable to identify missing in
-    
+
     Returns: pandas series
     '''
     return series.isnull()
@@ -300,8 +301,8 @@ def preprocess_data(df, methods=None, manual_vals=None):
     missing = df.apply(identify_missing)\
                 .add_suffix('_missing')
     df = df.apply(lambda x: impute_missing(x, method=methods.get(x.name, None),
-                                              manual_val=manual_vals.get(x.name, None)), 
-                    axis=0)
+                                           manual_val=manual_vals.get(x.name, None)),
+                  axis=0)
     return pd.concat([df, missing], axis=1)
 
 def cut_binary(series, threshold, or_equal_to=False):
@@ -347,7 +348,7 @@ def cut_variable(series, bins, labels=None, kwargs=None):
         kwargs = {}
 
     if isinstance(bins, int):
-        return pd.qcut(series, bins, labels=labels, duplicates='drop', 
+        return pd.qcut(series, bins, labels=labels, duplicates='drop',
                        retbins=True, **kwargs)\
                  .astype('category')
 
@@ -381,9 +382,9 @@ def create_dummies(df, column, values=None):
 
 def scale_variable_minmax(series, a=None, b=None):
     '''
-    Scales a variable according to the formula (2x - (a + b))/(a - b), 
+    Scales a variable according to the formula (2x - (a + b))/(a - b),
     where x is an observation from the dataset.
-    
+
     If a is not specified, then the maximum value of the variable is a, and if b
     is not specified, then the minimum value of the variable is b.
 
@@ -410,7 +411,7 @@ def generate_n_occurences(series, addl_obs=None):
         on
     addl_obs (pandas series): additional observations to consider when counting the
         number of occurences of each value; these observations are not included
-        in the output, and this column is indended to be used for observations 
+        in the output, and this column is indended to be used for observations
         from the training set when the series is from a test set
     '''
     val_counts = series.append(addl_obs, ignore_index=True)\
@@ -422,7 +423,7 @@ def create_time_diff(start_dates, end_dates):
     '''
     Calculates the time difference between two date columns.
 
-    Inputs: 
+    Inputs:
     start_dates (pandas series): the start dates to calculate the difference
         from; column should be have type datetime
     end_dates (pandas series): the end dates to calculate the difference to;
@@ -479,16 +480,16 @@ def visualize_decision_tree(dt, feature_names, class_names, filepath='tree'):
 
 def generate_iter_model_specs(base_specs, iter_param, iter_vals):
     '''
-    Produces a list of model specification dictionaries for use with 
+    Produces a list of model specification dictionaries for use with
     generate_classifer) that iterates over different values for one parameter.
 
     Inputs:
     base_specs (dict): a dictionary specifying the base parameters of the
-        model that are not iterated over. Each dictionary must contain a "model" 
-        key with a value specifying the type of model to generate; currently 
+        model that are not iterated over. Each dictionary must contain a "model"
+        key with a value specifying the type of model to generate; currently
         supported types are listed below. All other entries in the dictionary
-        are optional and should have the key as the name of a parameter for the 
-        specified classifier and the value as the desired value of that 
+        are optional and should have the key as the name of a parameter for the
+        specified classifier and the value as the desired value of that
         parameter.
     iter_param (str): the name of the parameter to iterate over
     iter_vals (list): the values of the iterative parameter to generate model
@@ -520,7 +521,7 @@ def generate_iter_model_specs(base_specs, iter_param, iter_vals):
         models.append(model_specs)
     return models
 
-def write_model_specs(models, output, input=None):
+def write_model_specs(models, output_path, input_path=None):
     '''
     Writes a list of models to file so that they can be reused later. As the
     output is stored in JSON format, model specifications including callable
@@ -528,16 +529,16 @@ def write_model_specs(models, output, input=None):
 
     Inputs:
     models (list of dicts): the model specifications to write to file
-    output (str): the filepath to output the model specifications to, will
+    output_path (str): the filepath to output the model specifications to, will
         overwrite any existing file
-    input (str): a file with existing model specs to append the list to
+    input_path (str): a file with existing model specs to append the list to
     '''
     if input is not None:
-        with open(input, 'r') as input_file:
+        with open(input_path, 'r') as input_file:
             existing_models = json.load(input_file)
             models = existing_models + models
 
-    with open(output, 'w') as output_file:
+    with open(output_path, 'w') as output_file:
         json.dump(models, output_file)
 
 def generate_classifier(features, target, model_specs):
@@ -629,7 +630,7 @@ def predict_target_class(pred_probs, threshold, tie_breaker='random',
     threshold (float): the precentile of observations to predict as positive,
         should be in the range [0.0, 1.0]
     tie_breaker (str): how to break ties when predicting classes at the margin
-        when predicting classese; valid inputs are: 
+        when predicting classese; valid inputs are:
         - 'random': randomly selects which instances to predict as positive among
                     those with the lowest probability meeting the specified
                     threshold
@@ -648,17 +649,17 @@ def predict_target_class(pred_probs, threshold, tie_breaker='random',
     Returns: pandas series
     '''
     assert tie_breaker in ['random', 'pessimistic', 'optimistic']
-    if not tie_breaker == 'random':
+    if tie_breaker != 'random':
         assert true_classes is not None
 
     max_positives = int(np.floor(threshold * len(pred_probs)))
-    pred_classes = pred_probs >= np.quantile(pred_probs, 1 - threshold, 
-                                           interpolation='higher')
+    pred_classes = pred_probs >= np.quantile(pred_probs, 1 - threshold,
+                                             interpolation='higher')
     n_positives = np.sum(pred_classes)
     excess_positives = n_positives - max_positives
     if not excess_positives:
         return pred_classes
-    
+
     min_positive_prob = min(pred_probs[pred_classes])
     if tie_breaker == 'random':
         change_pred = pred_probs[pred_probs == min_positive_prob]\
@@ -706,10 +707,10 @@ def evaluate_classifier(pred_probs, true_classes, thresholds, tie_breaker='rando
         being positive
     true_classes (pandas series): the ground truth about whether the target variable
         is positive
-    thresholds (list of floats): different threshold levels to use when 
+    thresholds (list of floats): different threshold levels to use when
         calculating precision, recall and F1, should be in range [0.0, 1.0]
     tie_breaker (str): how to break ties when predicting classes at the margin
-        when predicting classese; valid inputs are: 
+        when predicting classese; valid inputs are:
         - 'random': random selects which instances to predict as positive among
                     those with the lowest probability meeting the specified
                     threshold
@@ -722,19 +723,19 @@ def evaluate_classifier(pred_probs, true_classes, thresholds, tie_breaker='rando
                          those with the lowest probability meeting the specified
                          threshold
     seed (int): optional seed to make results reproducable
-    model_name (str): optional model name to include in the title of the 
+    model_name (str): optional model name to include in the title of the
         precision/recall curve graph
     dataset_name (str): optional model name to include in the title of the
         precision/recall curve graph
 
     Returns: tuple of pandas series and matplotlib figure
     '''
-    index = [['Accuracy'] * len(thresholds) +['Precision'] * len(thresholds) + 
+    index = [['Accuracy'] * len(thresholds) +['Precision'] * len(thresholds) +
              ['Recall'] * len(thresholds) + ['F1'] * len(thresholds),
              thresholds * 4]
     index = list(zip(*index))
     index.append(('AUC-ROC', None))
-    index = pd.MultiIndex.from_tuples(index, names=['Metric', 'Threshold']) 
+    index = pd.MultiIndex.from_tuples(index, names=['Metric', 'Threshold'])
     evaluations = pd.Series(index=index)
 
     for threshold in thresholds:
@@ -753,7 +754,7 @@ def evaluate_classifier(pred_probs, true_classes, thresholds, tie_breaker='rando
 
     return evaluations, fig
 
-def graph_precision_recall(pred_probs, true_classes, resolution=33, 
+def graph_precision_recall(pred_probs, true_classes, resolution=33,
                            tie_breaker='random', seed=None, model_name=None,
                            dataset_name=None):
     '''
@@ -766,7 +767,7 @@ def graph_precision_recall(pred_probs, true_classes, resolution=33,
     resolution (list of ints): number of evenly-spaced threshold levels to plot
         recall and precision at
     tie_breaker (str): how to break ties when predicting classes at the margin
-        when predicting classese; valid inputs are: 
+        when predicting classese; valid inputs are:
         - 'random': random selects which instances to predict as positive among
                     those with the lowest probability meeting the specified
                     threshold
@@ -779,11 +780,11 @@ def graph_precision_recall(pred_probs, true_classes, resolution=33,
                          those with the lowest probability meeting the specified
                          threshold
     seed (int): optional seed to set for use with random tiebreaking
-    model_name (str): optional model name to include in the title of the 
+    model_name (str): optional model name to include in the title of the
         precision/recall curve graph
     dataset_name (str): optional model name to include in the title of the
         precision/recall curve graph
-    
+
     Returns: tuple of pandas series and matplotlib figure
     '''
     if not seed:
@@ -796,7 +797,7 @@ def graph_precision_recall(pred_probs, true_classes, resolution=33,
     recall = []
     for threshold in thresholds:
         pred_classes = predict_target_class(pred_probs, threshold, tie_breaker,
-                                              true_classes, seed)
+                                            true_classes, seed)
         precision.append(metrics.precision_score(true_classes, pred_classes))
         recall.append(metrics.recall_score(true_classes, pred_classes))
     precision_recall_curves = pd.DataFrame
@@ -819,7 +820,7 @@ def graph_precision_recall(pred_probs, true_classes, resolution=33,
 
     return fig
 
-def create_temporal_splits(df, date_col, time_length, gap=None, start_date=None): 
+def create_temporal_splits(df, date_col, time_length, gap=None, start_date=None):
     '''
     Splits into different sets by time intervals.
 
@@ -830,7 +831,7 @@ def create_temporal_splits(df, date_col, time_length, gap=None, start_date=None)
     time_length (dictionary): specifies the time length of each split, with
         strings of units of time (i.e. hours, days, months, years, etc.) as keys
         and integers as values; for example 6 months would be {'months': 6}
-    gap (dictionary): optional length of time to leave between the end of the 
+    gap (dictionary): optional length of time to leave between the end of the
         training set and the beginning of the test set, specified as a dictionary
         with string units of time as keys and integers as values
     start_date (str): the first date to include in a testing split; value should
@@ -841,7 +842,7 @@ def create_temporal_splits(df, date_col, time_length, gap=None, start_date=None)
         test sets and the second of which contains training sets
     '''
     time_length = relativedelta.relativedelta(**time_length)
-    
+
     if gap:
         gap = relativedelta.relativedelta(**gap)
     else:
@@ -851,7 +852,7 @@ def create_temporal_splits(df, date_col, time_length, gap=None, start_date=None)
         df = df[df[date_col] > start_date]
     else:
         start_date = min(df[date_col]) + time_length
-    
+
     test_splits = []
     train_splits = []
     max_date = max(df[date_col])
@@ -861,7 +862,7 @@ def create_temporal_splits(df, date_col, time_length, gap=None, start_date=None)
         test_end = (start_date + ((i + 1) * time_length))
         lo_test_mask = test_start <= df[date_col]
         up_test_mask = df[date_col] < test_end
-        train_mask = gap_mask = df[date_col] < (test_start - gap)
+        train_mask = df[date_col] < (test_start - gap)
         test_splits.append(df[lo_test_mask & up_test_mask])
         train_splits.append(df[train_mask])
         i += 1
