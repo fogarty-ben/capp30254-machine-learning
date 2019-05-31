@@ -533,7 +533,7 @@ def write_model_specs(models, output_path, input_path=None):
         overwrite any existing file
     input_path (str): a file with existing model specs to append the list to
     '''
-    if input is not None:
+    if input_path is not None:
         with open(input_path, 'r') as input_file:
             existing_models = json.load(input_file)
             models = existing_models + models

@@ -2,30 +2,34 @@
 
 This project's folder contains the following files:
 
-- writeup.pdf: the explanatory writeup detailed in the assingment
+- writeup.pdf: the explanatory writeup detailed in the assignment
 - demonstratrion.ipynb: jupyter notebook demonstrating some of the pipeline's functionality
-- pipeline_library.py: general functions for a machine learning pipeline (reading data, preprocessing data, generating features, building models, etc.)
-- predict_fudning.py: specific functions for applying the functions in pipeline_library to the DonorsChoose Data
+- assignment.md: the assignment statement  
 
-- output/: text and figure output from running the software with the full dataset
+
+- pipeline_library.py: general functions for a machine learning pipeline (reading data, preprocessing data, generating features, building models, etc.)
+- predict_fudning.py: specific functions for applying pipeline_library to the DonorsChoose Data  
+
+
+- output/: some sample figure output from running the software with the full dataset  
+
 
 - configs/features.json: details features parameters to run the models with
 - configs/preprocessing.json: details preprocess features to run the models with
-- configs/models.json: a full list of models to run
-- configs/flipped_models.json: a full list of models to run in reverse order
-- configs/mini_models.json: a shorter list of models to run
+- configs/models.json: a list of models to run  
+
 
 - data/projects_2012-2013.csv: the DonorsChoose dataset
-- data/projects_1000.csv: a sample of 1000 DonorsChoose projects
-- data/projects_sample.csv: a sample of 10000 DonorsChoose projects
+- data/projects_1000.csv: a sample of 1,000 DonorsChoose projects
+- data/projects_sample.csv: a sample of 10,000 DonorsChoose projects  
 
-- assignment.md: the assignment statement
 
-The project was developed using Python 3.7.3 on MacOS Mojave 10.14.4. It requires the following libraries:
+
+The project was developed using Python 3.7.3 on MacOS Mojave 10.14.4, and results were obtained by running the project on a compute node of the Research Computing Center at the University of Chicago and on a c4.8xlarge AWS EC2 virtual machine. It requires the following libraries:
 
 | Package        | Version     |
 | :------------: | :---------: |
-| dateutil       | 2.8.0.      |
+| dateutil       | 2.8.0      |
 | graphviz       | 0.8.4       |
 | pandas         | 0.24.2      |
 | matplotlib     | 3.0.3       |
