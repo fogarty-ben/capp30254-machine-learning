@@ -2,6 +2,7 @@
 
 This project's folder contains the following files:
 
+- writeup.pdf: the explanatory writeup detailed in the assingment
 - demonstratrion.ipynb: jupyter notebook demonstrating some of the pipeline's functionality
 - pipeline_library.py: general functions for a machine learning pipeline (reading data, preprocessing data, generating features, building models, etc.)
 - predict_fudning.py: specific functions for applying the functions in pipeline_library to the DonorsChoose Data
