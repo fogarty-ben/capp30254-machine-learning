@@ -18,43 +18,13 @@
       "max_depth":20
    },
    {
-      "model":"dt",
-      "name":"Decision Tree (max_depth 25)",
-      "criterion":"entropy",
-      "max_depth":25
-   },
-   {
-      "model":"lr",
-      "name":"Logistic Regression (l2, C=0.75)",
-      "penalty":"l2",
-      "C":0.75,
-      "solver":"lbfgs",
-      "n_jobs":-1
-   },
-   {
       "model":"lr",
       "name":"Logistic Regression (l2, C=1.0)",
       "penalty":"l2",
       "C":1.0,
       "solver":"lbfgs",
-      "n_jobs":-1
-   },
-   {
-      "model":"lr",
-      "name":"Logistic Regression (l2, C=1.25)",
-      "penalty":"l2",
-      "C":1.25,
-      "solver":"lbfgs",
-      "n_jobs":-1
-   },
-   {
-      "model":"lr",
-      "name":"Logistic Regression (l1, C=0.75)",
-      "penalty":"l1",
-      "C":0.75,
-      "solver":"saga",
       "n_jobs":-1,
-      "max_iter":300
+      "max_iter": 300
    },
    {
       "model":"lr",
@@ -81,11 +51,6 @@
    },
    {
       "model":"svc",
-      "name":"Support Vector Machines (C=1.0)",
-      "C":1.0
-   },
-   {
-      "model":"svc",
       "name":"Support Vector Machines (C=1.25)",
       "C":1.25
    },
@@ -104,13 +69,6 @@
       "n_jobs":-1
    },
    {
-      "model":"rf",
-      "name":"Random Forest",
-      "criterion":"entropy",
-      "n_estimators":30,
-      "n_jobs":-1
-   },
-   {
       "model":"boosting",
       "name":"AdaBoosting",
       "n_estimators":10
@@ -121,26 +79,9 @@
       "n_estimators":20
    },
    {
-      "model":"boosting",
-      "name":"AdaBoosting",
-      "n_estimators":30
-   },
-   {
       "model":"bagging",
       "name":"Bagging (5 estimators)",
       "n_estimators":5,
-      "n_jobs":-1
-   },
-   {
-      "model":"bagging",
-      "name":"Bagging (10 estimators)",
-      "n_estimators":20,
-      "n_jobs":-1
-   },
-   {
-      "model":"knn",
-      "name":"10 Nearest Neighbors",
-      "n_neighbors":10,
       "n_jobs":-1
    },
    {
