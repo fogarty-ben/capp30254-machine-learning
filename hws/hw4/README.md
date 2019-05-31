@@ -13,7 +13,7 @@ The project was developed using Python 3.7.3 on MacOS Mojave 10.14.4. It require
 
 | Package        | Version     |
 | :------------: | :---------: |
-| graphviz       | 2.40.1      |
+| graphviz       | 0.8.4      |
 | pandas         | 0.24.2      |
 | matplotlib     | 3.0.3       |
 | numpy          | 1.16.2      |
