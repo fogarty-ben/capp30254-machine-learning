@@ -503,7 +503,7 @@ if __name__ == '__main__':
                         required=True, help="Path to the model specs JSON")
     parser.add_argument('-p', '--preprocess', type=str, dest='preprocess',
                         required=False, help="Path to the preprocessing config JSON")
-    parser.add_argument('-s', '--seed', type=float, dest='seed', required=False,
+    parser.add_argument('-s', '--seed', type=int, dest='seed', required=False,
                         help='Random seed for tiebreaking when predicting classes')
     parser.add_argument('--savefigs', dest='save_figs',
                         required=False, action='store_true',
